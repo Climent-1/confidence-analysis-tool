@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AB测试置信分析工具v1.2</title>
+  <title>AB测试置信分析工具v1.3</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
@@ -130,6 +130,29 @@
         <div id="metrics-checkboxes" class="flex flex-wrap gap-3 mb-4"></div>
       </div>
       
+      <!-- 分析参数设置 -->
+      <div id="analysis-parameters" class="mt-6 hidden bg-neutral-50 p-4 rounded-lg">
+        <h3 class="text-lg font-medium mb-3 text-neutral-700">分析参数</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="significance-level" class="block text-sm font-medium text-neutral-700 mb-1">统计显著性水平 (α)</label>
+            <div class="flex items-center">
+              <input type="number" id="significance-level" value="0.05" min="0.01" max="0.5" step="0.01" 
+                class="flex-1 rounded-md border-neutral-300 shadow-sm focus:border-primary focus:ring focus:ring-primary/20">
+              <span class="ml-2 text-neutral-500">默认: 0.05 (5%)</span>
+            </div>
+          </div>
+          <div>
+            <label for="minimum-effect" class="block text-sm font-medium text-neutral-700 mb-1">最小实际显著差异 (%)</label>
+            <div class="flex items-center">
+              <input type="number" id="minimum-effect" value="5" min="0.1" max="100" step="0.1" 
+                class="flex-1 rounded-md border-neutral-300 shadow-sm focus:border-primary focus:ring focus:ring-primary/20">
+              <span class="ml-2 text-neutral-500">用于功效计算</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
       <!-- 分析按钮 -->
       <div class="mt-8 text-center">
         <button id="analyze-btn" class="bg-primary text-white px-8 py-3 rounded-lg font-medium text-lg shadow-md hover:bg-primary/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed" disabled>
@@ -153,7 +176,7 @@
         <h2 class="text-xl md:text-2xl font-semibold mb-6 text-neutral-700">
           <i class="fa fa-star text-warning mr-2"></i>核心指标置信分析结果
         </h2>
-        <div id="key-metrics-charts" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+        <div id="key-metrics-charts" class="grid grid-cols-1 lg:grid-cols-2 gap-6"></div>
       </div>
       
       <!-- 所有指标结果 -->
@@ -192,6 +215,8 @@
     let groups = [];
     let selectedControlGroups = [];
     let selectedKeyMetrics = [];
+    let significanceLevel = 0.05; // 默认显著性水平
+    let minimumEffect = 5; // 默认最小实际显著差异(%)
     
     // DOM元素
     const dropArea = document.getElementById('drop-area');
@@ -204,6 +229,9 @@
     const controlGroupCheckboxes = document.getElementById('control-group-checkboxes');
     const metricsSelection = document.getElementById('metrics-selection');
     const metricsCheckboxes = document.getElementById('metrics-checkboxes');
+    const analysisParameters = document.getElementById('analysis-parameters');
+    const significanceLevelInput = document.getElementById('significance-level');
+    const minimumEffectInput = document.getElementById('minimum-effect');
     const analyzeBtn = document.getElementById('analyze-btn');
     const resultsSection = document.getElementById('results-section');
     const loadingIndicator = document.getElementById('loading-indicator');
@@ -212,6 +240,21 @@
     const keyMetricsCharts = document.getElementById('key-metrics-charts');
     const allMetricsCharts = document.getElementById('all-metrics-charts');
     const statusMessage = document.getElementById('status-message');
+    
+    // 监听参数变化
+    significanceLevelInput.addEventListener('change', function() {
+      significanceLevel = parseFloat(this.value) || 0.05;
+      if (significanceLevel < 0.01) significanceLevel = 0.01;
+      if (significanceLevel > 0.5) significanceLevel = 0.5;
+      this.value = significanceLevel;
+    });
+    
+    minimumEffectInput.addEventListener('change', function() {
+      minimumEffect = parseFloat(this.value) || 5;
+      if (minimumEffect < 0.1) minimumEffect = 0.1;
+      if (minimumEffect > 100) minimumEffect = 100;
+      this.value = minimumEffect;
+    });
     
     // 显示状态消息
     function showStatusMessage(message, type = 'info') {
@@ -314,6 +357,7 @@
       dataPreview.classList.add('hidden');
       controlGroupSelection.classList.add('hidden');
       metricsSelection.classList.add('hidden');
+      analysisParameters.classList.add('hidden');
       analyzeBtn.disabled = true;
       hideStatusMessage();
       
@@ -441,6 +485,9 @@
       
       // 显示指标选择
       displayMetricsSelection(metrics);
+      
+      // 显示分析参数设置
+      analysisParameters.classList.remove('hidden');
       
       // 初始禁用分析按钮，等待选择对照组和核心指标
       analyzeBtn.disabled = true;
@@ -623,6 +670,7 @@
       
       // 确定测试组（未被选为对照组的分组）
       const testGroups = groups.filter(group => !selectedControlGroups.includes(group));
+      const controlName = selectedControlGroups.length > 1 ? '合并对照组' : selectedControlGroups[0];
       
       // 按分组聚合数据
       const groupData = {};
@@ -670,7 +718,7 @@
       metrics.forEach(metric => {
         analysisResults[metric] = {
           control: {
-            name: selectedControlGroups.length > 1 ? '合并对照组' : selectedControlGroups[0],
+            name: controlName,
             ...calculateGroupStats(combinedControlData.metrics[metric])
           },
           tests: {}
@@ -681,14 +729,17 @@
           const testStats = calculateGroupStats(groupData[testGroup].metrics[metric]);
           analysisResults[metric].tests[testGroup] = {
             ...testStats,
-            difference: calculateDifference(analysisResults[metric].control, testStats)
+            difference: calculateDifference(
+              analysisResults[metric].control, 
+              testStats,
+              metric
+            )
           };
         });
       });
       
       // 生成业务建议
-      generateBusinessInsights(analysisResults, selectedKeyMetrics, testGroups, 
-        selectedControlGroups.length > 1 ? '合并对照组' : selectedControlGroups[0]);
+      generateBusinessInsights(analysisResults, selectedKeyMetrics, testGroups, controlName);
       
       // 生成核心指标图表
       selectedKeyMetrics.forEach(metric => {
@@ -720,70 +771,97 @@
     }
     
     // 计算与对照组的差异
-    function calculateDifference(control, test) {
+    function calculateDifference(control, test, metric) {
       const diff = test.mean - control.mean;
       const relativeDiff = (diff / control.mean) * 100;
       const pValue = simulatePValue(control, test);
+      const significant = pValue < significanceLevel;
+      
+      // 计算功效(Power) - 检测到实际差异的概率
+      const effectSize = Math.abs(relativeDiff) / 100; // 实际观察到的效应量
+      const minimumEffectSize = minimumEffect / 100; // 最小实际显著差异
+      const power = calculatePower(control, test, Math.max(effectSize, minimumEffectSize));
       
       return {
         absolute: diff,
         relative: relativeDiff,
-        significant: pValue < 0.05,
-        pValue: pValue
+        pValue: pValue,
+        significant: significant,
+        significanceLevel: significanceLevel,
+        power: power,
+        // 95%置信区间(相对差异)
+        ciLower: ((test.ciLower - control.mean) / control.mean) * 100,
+        ciUpper: ((test.ciUpper - control.mean) / control.mean) * 100
       };
+    }
+    
+    // 计算统计功效(Power)
+    function calculatePower(control, test, effectSize) {
+      // 合并标准差
+      const pooledStd = Math.sqrt(((control.n - 1) * Math.pow(control.std, 2) + 
+                                 (test.n - 1) * Math.pow(test.std, 2)) / 
+                                (control.n + test.n - 2));
+      
+      // 标准误
+      const se = pooledStd * Math.sqrt(1/control.n + 1/test.n);
+      
+      // 临界值
+      const zAlpha = inverseNorm(1 - significanceLevel/2);
+      const zBeta = (effectSize * control.mean / se) - zAlpha;
+      
+      // 功效 = 1 - β
+      return 1 - normcdf(zBeta);
     }
     
     // 生成业务建议
     function generateBusinessInsights(results, keyMetrics, testGroups, controlName) {
-      let insights = `<p>根据AB测试分析结果，以${controlName}为基准，对比分析以下测试组：${testGroups.join('、')}，得出以下业务建议：</p>`;
+      let insights = `<p>根据AB测试分析结果（显著性水平 α = ${(significanceLevel * 100).toFixed(1)}%），以${controlName}为基准，对比分析以下测试组：${testGroups.join('、')}，得出以下业务建议：</p>`;
       
       // 按测试组分析核心指标
       testGroups.forEach(testGroup => {
-        insights += `<h4 class="font-medium text-lg mt-4 mb-2">与${testGroup}的对比分析：</h4>`;
-        insights += '<ul class="list-disc pl-5 my-2">';
+        insights += `<h4 class="font-medium text-lg mt-6 mb-3">与${testGroup}的对比分析：</h4>`;
+        insights += '<ul class="list-disc pl-5 my-3">';
         
         keyMetrics.forEach(metric => {
           const result = results[metric].tests[testGroup];
           const diff = result.difference;
           
+          // 统计显著性判断
+          let sigText = diff.significant ? 
+            `<span class="text-success font-medium">具有统计显著性</span>（p = ${diff.pValue.toFixed(4)} < α = ${diff.significanceLevel.toFixed(2)}）` : 
+            `<span class="text-neutral-500 font-medium">不具有统计显著性</span>（p = ${diff.pValue.toFixed(4)} ≥ α = ${diff.significanceLevel.toFixed(2)}）`;
+          
+          // 功效判断
+          let powerText = diff.power >= 0.8 ? 
+            `<span class="text-success">功效充足</span>（${(diff.power * 100).toFixed(1)}% ≥ 80%）` : 
+            `<span class="text-warning">功效不足</span>（${(diff.power * 100).toFixed(1)}% < 80%）`;
+          
+          // 差异描述
+          let diffText = diff.relative > 0 ? 
+            `提升了${Math.abs(diff.relative).toFixed(2)}%` : 
+            `下降了${Math.abs(diff.relative).toFixed(2)}%`;
+          
+          // 置信区间描述
+          const ciText = `95%置信区间: [${diff.ciLower.toFixed(2)}%, ${diff.ciUpper.toFixed(2)}%]`;
+          
+          // 综合建议
           if (diff.significant) {
             if (diff.relative > 0) {
-              insights += `<li class="mb-2"><span class="font-medium text-success">${metric}</span>在${testGroup}表现显著优于${controlName}，提升了${Math.abs(diff.relative).toFixed(2)}%，建议考虑推广${testGroup}方案。</li>`;
+              insights += `<li class="mb-4"><span class="font-medium">${metric}</span>：${testGroup}较${controlName}${diffText}，${sigText}。${ciText}。统计${powerText}。建议考虑推广${testGroup}方案。</li>`;
             } else {
-              insights += `<li class="mb-2"><span class="font-medium text-danger">${metric}</span>在${testGroup}表现显著劣于${controlName}，下降了${Math.abs(diff.relative).toFixed(2)}%，不建议推广${testGroup}方案。</li>`;
+              insights += `<li class="mb-4"><span class="font-medium">${metric}</span>：${testGroup}较${controlName}${diffText}，${sigText}。${ciText}。统计${powerText}。不建议推广${testGroup}方案。</li>`;
             }
           } else {
-            insights += `<li class="mb-2"><span class="font-medium text-neutral-500">${metric}</span>在${testGroup}与${controlName}间差异不显著（p=${diff.pValue.toFixed(3)}），建议延长测试时间或增加样本量。</li>`;
+            let advice = diff.power < 0.8 
+              ? "建议增加样本量以提高统计功效，或延长测试时间。" 
+              : "结果表明两组无显著差异，可以考虑保持现有方案或进一步优化测试设计。";
+            
+            insights += `<li class="mb-4"><span class="font-medium">${metric}</span>：${testGroup}与${controlName}差异${diffText}，${sigText}。${ciText}。统计${powerText}。${advice}</li>`;
           }
         });
         
         insights += '</ul>';
       });
-      
-      // 整体结论
-      insights += '<div class="mt-4">';
-      
-      testGroups.forEach(testGroup => {
-        const significantImprovements = keyMetrics.filter(metric => 
-          results[metric].tests[testGroup].difference.significant && 
-          results[metric].tests[testGroup].difference.relative > 0
-        );
-        
-        const significantDeclines = keyMetrics.filter(metric => 
-          results[metric].tests[testGroup].difference.significant && 
-          results[metric].tests[testGroup].difference.relative < 0
-        );
-        
-        if (significantImprovements.length > significantDeclines.length) {
-          insights += `<p class="p-3 bg-success/10 border border-success/30 rounded-lg text-success my-2"><i class="fa fa-check-circle mr-2"></i>整体来看，${testGroup}在关键指标上表现优于${controlName}，建议考虑推广。</p>`;
-        } else if (significantDeclines.length > 0) {
-          insights += `<p class="p-3 bg-danger/10 border border-danger/30 rounded-lg text-danger my-2"><i class="fa fa-exclamation-circle mr-2"></i>整体来看，${testGroup}在关键指标上表现劣于${controlName}，不建议推广。</p>`;
-        } else {
-          insights += `<p class="p-3 bg-neutral-100 border border-neutral-300 rounded-lg text-neutral-600 my-2"><i class="fa fa-info-circle mr-2"></i>${testGroup}与${controlName}的测试结果尚未明确，建议继续观察。</p>`;
-        }
-      });
-      
-      insights += '</div>';
       
       insightsContent.innerHTML = insights;
     }
@@ -792,6 +870,7 @@
     function createMetricChart(metric, result, container, isKeyMetric) {
       const control = result.control;
       const testGroups = Object.keys(result.tests);
+      const controlName = control.name;
       
       // 创建卡片容器
       const card = document.createElement('div');
@@ -803,57 +882,117 @@
       title.textContent = metric;
       card.appendChild(title);
       
-      // 图表容器
+      // 图表容器 - 均值对比
       const chartContainer = document.createElement('div');
-      chartContainer.className = 'h-64 mb-4';
+      chartContainer.className = 'h-64 mb-6';
       const canvas = document.createElement('canvas');
       chartContainer.appendChild(canvas);
       card.appendChild(chartContainer);
       
-      // 统计信息
-      const statsDiv = document.createElement('div');
-      statsDiv.className = 'space-y-2 text-sm mb-3';
-      
-      // 对照组信息
-      const controlDiv = document.createElement('div');
-      controlDiv.className = 'bg-neutral-50 p-2 rounded';
-      controlDiv.innerHTML = `
-        <p class="text-neutral-500">${control.name}均值</p>
-        <p class="font-medium">${formatValue(control.mean)}</p>
+      // 统计信息表格
+      const statsTable = document.createElement('div');
+      statsTable.className = 'overflow-x-auto text-sm';
+      statsTable.innerHTML = `
+        <table class="min-w-full divide-y divide-neutral-200">
+          <thead>
+            <tr>
+              <th class="px-3 py-2 bg-neutral-50 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">分组</th>
+              <th class="px-3 py-2 bg-neutral-50 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">均值</th>
+              <th class="px-3 py-2 bg-neutral-50 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">样本量</th>
+              <th class="px-3 py-2 bg-neutral-50 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">95%置信区间</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-neutral-200">
+            <tr>
+              <td class="px-3 py-2">${controlName}</td>
+              <td class="px-3 py-2 font-medium">${formatValue(control.mean)}</td>
+              <td class="px-3 py-2">${control.n}</td>
+              <td class="px-3 py-2">${formatValue(control.ciLower)} - ${formatValue(control.ciUpper)}</td>
+            </tr>
+          </tbody>
+        </table>
       `;
-      statsDiv.appendChild(controlDiv);
+      card.appendChild(statsTable);
       
-      // 测试组信息
+      // 差异统计信息
+      const diffStatsContainer = document.createElement('div');
+      diffStatsContainer.className = 'mt-4 space-y-3';
+      
       testGroups.forEach(testGroup => {
-        const testDiv = document.createElement('div');
         const diff = result.tests[testGroup].difference;
-        testDiv.className = `p-2 rounded ${
+        const diffCard = document.createElement('div');
+        
+        diffCard.className = `p-3 rounded border ${
           diff.significant 
-            ? (diff.relative > 0 ? 'bg-success/5 border border-success/20' : 'bg-danger/5 border border-danger/20') 
-            : 'bg-neutral-50'
+            ? (diff.relative > 0 ? 'bg-success/5 border-success/20' : 'bg-danger/5 border-danger/20') 
+            : 'bg-neutral-50 border-neutral-200'
         }`;
         
-        testDiv.innerHTML = `
-          <p class="text-neutral-500">${testGroup}均值 (与${control.name}相比)</p>
-          <p class="font-medium">${formatValue(result.tests[testGroup].mean)} 
-            <span class="${diff.relative > 0 ? 'text-success' : 'text-danger'}">
+        // 差异标题
+        diffCard.innerHTML = `<h4 class="font-medium mb-2">与${testGroup}的差异分析</h4>`;
+        
+        // 差异统计数据
+        const statsGrid = document.createElement('div');
+        statsGrid.className = 'grid grid-cols-2 md:grid-cols-4 gap-2 text-xs';
+        
+        // 相对差异
+        statsGrid.innerHTML += `
+          <div>
+            <p class="text-neutral-500">相对差异</p>
+            <p class="${diff.relative > 0 ? 'text-success' : 'text-danger'} font-medium">
               ${diff.relative > 0 ? '+' : ''}${diff.relative.toFixed(2)}%
-              ${diff.significant ? '<span class="text-xs font-normal">(*显著)</span>' : ''}
-            </span>
-          </p>
+            </p>
+          </div>
         `;
-        statsDiv.appendChild(testDiv);
+        
+        // p值
+        statsGrid.innerHTML += `
+          <div>
+            <p class="text-neutral-500">p值 (P-value)</p>
+            <p class="${diff.significant ? 'text-success' : 'text-neutral-600'} font-medium">
+              ${diff.pValue.toFixed(4)}
+            </p>
+          </div>
+        `;
+        
+        // 显著性水平
+        statsGrid.innerHTML += `
+          <div>
+            <p class="text-neutral-500">显著性水平 (α)</p>
+            <p class="font-medium">${(diff.significanceLevel * 100).toFixed(1)}%</p>
+          </div>
+        `;
+        
+        // 功效
+        statsGrid.innerHTML += `
+          <div>
+            <p class="text-neutral-500">功效 (Power)</p>
+            <p class="${diff.power >= 0.8 ? 'text-success' : 'text-warning'} font-medium">
+              ${(diff.power * 100).toFixed(1)}%
+            </p>
+          </div>
+        `;
+        
+        // 95%置信区间
+        statsGrid.innerHTML += `
+          <div class="col-span-2 md:col-span-4 mt-2">
+            <p class="text-neutral-500">95%置信区间 (CI)</p>
+            <p class="font-medium">${diff.ciLower.toFixed(2)}% - ${diff.ciUpper.toFixed(2)}%</p>
+          </div>
+        `;
+        
+        diffCard.appendChild(statsGrid);
+        diffStatsContainer.appendChild(diffCard);
       });
       
-      card.appendChild(statsDiv);
-      
+      card.appendChild(diffStatsContainer);
       container.appendChild(card);
       
-      // 绘制图表
+      // 绘制图表 - 包含均值和置信区间
       new Chart(canvas, {
         type: 'bar',
         data: {
-          labels: [control.name, ...testGroups],
+          labels: [controlName, ...testGroups],
           datasets: [{
             label: '均值',
             data: [control.mean, ...testGroups.map(g => result.tests[g].mean)],
@@ -866,6 +1005,15 @@
               ...testGroups.map((_, i) => `rgb(22, 93, 255, ${1 - (i * 0.1 > 0.4 ? 0.4 : i * 0.1)})`)
             ],
             borderWidth: 1
+          }, {
+            label: '95% 置信区间',
+            data: [control.mean, ...testGroups.map(g => result.tests[g].mean)],
+            type: 'line',
+            fill: false,
+            borderColor: 'transparent',
+            pointRadius: 0,
+            pointHoverRadius: 0,
+            yAxisID: 'y1',
           }]
         },
         options: {
@@ -883,6 +1031,23 @@
                   return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
                 }
               }
+            },
+            y1: {
+              position: 'right',
+              min: Math.min(
+                control.ciLower, 
+                ...testGroups.map(g => result.tests[g].ciLower)
+              ),
+              max: Math.max(
+                control.ciUpper, 
+                ...testGroups.map(g => result.tests[g].ciUpper)
+              ),
+              grid: {
+                drawOnChartArea: false
+              },
+              ticks: {
+                display: false
+              }
             }
           },
           plugins: {
@@ -892,23 +1057,92 @@
                   let value = context.raw;
                   const label = context.label;
                   
-                  // 计算与对照组的差异（如果是测试组）
-                  if (testGroups.includes(label)) {
-                    const diff = result.tests[label].difference;
+                  // 对照组 tooltip
+                  if (label === controlName) {
                     return [
                       `均值: ${formatValue(value)}`,
-                      `与${control.name}差异: ${diff.relative > 0 ? '+' : ''}${diff.relative.toFixed(2)}%`,
-                      `p值: ${diff.pValue.toFixed(3)}`
+                      `样本量: ${control.n}`,
+                      `95%置信区间: ${formatValue(control.ciLower)} - ${formatValue(control.ciUpper)}`
+                    ];
+                  }
+                  
+                  // 测试组 tooltip
+                  if (testGroups.includes(label)) {
+                    const testResult = result.tests[label];
+                    const diff = testResult.difference;
+                    return [
+                      `均值: ${formatValue(value)}`,
+                      `样本量: ${testResult.n}`,
+                      `95%置信区间: ${formatValue(testResult.ciLower)} - ${formatValue(testResult.ciUpper)}`,
+                      `与${controlName}差异: ${diff.relative > 0 ? '+' : ''}${diff.relative.toFixed(2)}%`,
+                      `p值: ${diff.pValue.toFixed(4)}`,
+                      `功效: ${(diff.power * 100).toFixed(1)}%`
                     ];
                   }
                   
                   return `均值: ${formatValue(value)}`;
                 }
               }
+            },
+            error bars插件模拟 - 使用注释功能显示置信区间
+            annotation: {
+              annotations: {}
             }
           }
         }
       });
+      
+      // 为每个数据点添加误差线（置信区间）
+      const chart = Chart.getChart(canvas);
+      const meta = chart.getDatasetMeta(0);
+      
+      meta.data.forEach((element, index) => {
+        const label = chart.data.labels[index];
+        let ciLower, ciUpper;
+        
+        if (label === controlName) {
+          ciLower = control.ciLower;
+          ciUpper = control.ciUpper;
+        } else {
+          ciLower = result.tests[label].ciLower;
+          ciUpper = result.tests[label].ciUpper;
+        }
+        
+        // 创建误差线注释
+        chart.options.annotations[`errorbar-${index}`] = {
+          type: 'line',
+          yMin: ciLower,
+          yMax: ciUpper,
+          xMin: index - 0.2,
+          xMax: index + 0.2,
+          borderColor: 'rgba(75, 85, 99, 0.7)',
+          borderWidth: 2,
+          borderDash: [0],
+        };
+        
+        // 创建误差线顶部和底部横线
+        chart.options.annotations[`errorbar-top-${index}`] = {
+          type: 'line',
+          yMin: ciUpper,
+          yMax: ciUpper,
+          xMin: index - 0.1,
+          xMax: index + 0.1,
+          borderColor: 'rgba(75, 85, 99, 0.7)',
+          borderWidth: 2,
+        };
+        
+        chart.options.annotations[`errorbar-bottom-${index}`] = {
+          type: 'line',
+          yMin: ciLower,
+          yMax: ciLower,
+          xMin: index - 0.1,
+          xMax: index + 0.1,
+          borderColor: 'rgba(75, 85, 99, 0.7)',
+          borderWidth: 2,
+        };
+      });
+      
+      chart.update();
     }
     
     // 工具函数：计算均值
@@ -927,25 +1161,48 @@
       return Math.sqrt(variance);
     }
     
-    // 工具函数：模拟p值计算（简化版）
+    // 工具函数：模拟p值计算
     function simulatePValue(control, variant) {
-      // 实际应用中应使用适当的统计检验
-      const effectSize = Math.abs(variant.mean - control.mean) / 
-        Math.sqrt((Math.pow(control.std, 2) + Math.pow(variant.std, 2)) / 2);
+      // 计算z分数
+      const se = Math.sqrt(Math.pow(control.std, 2)/control.n + Math.pow(variant.std, 2)/variant.n);
+      const zScore = (variant.mean - control.mean) / se;
       
-      const sampleSize = Math.sqrt((control.n * variant.n) / (control.n + variant.n));
-      const zScore = effectSize * sampleSize;
-      
-      // 从z分数近似p值（双尾检验）
+      // 从z分数计算双尾p值
       return 2 * (1 - normcdf(Math.abs(zScore)));
     }
     
     // 正态分布累积分布函数（近似）
     function normcdf(x) {
-      const t = 1 / (1 + 0.2316419 * x);
-      const d = 0.3989423 * Math.exp(-x * x / 2);
-      const prob = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+      if (x < -10) return 0;
+      if (x > 10) return 1;
+      
+      const t = 1 / (1 + 0.2316419 * Math.abs(x));
+      const d = 0.3989422804 * Math.exp(-x * x / 2);
+      const prob = d * t * (0.319381530 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+      
       return x >= 0 ? 1 - prob : prob;
+    }
+    
+    // 正态分布分位数函数（近似）- 用于计算临界值
+    function inverseNorm(p) {
+      if (p <= 0 || p >= 1) return p <= 0 ? -Infinity : Infinity;
+      if (p === 0.5) return 0;
+      
+      const sign = p < 0.5 ? -1 : 1;
+      const q = sign === 1 ? 1 - p : p;
+      
+      const b = [
+        1.570796288, 0.03706987906, -0.8364353589e-3,
+        -0.2250947176e-3, 0.6841218299e-5, 0.5824238515e-5,
+        -0.104527497e-5, 0.8360937017e-7, -0.3231081277e-8,
+        0.3657763036e-10, 0.6936233982e-12
+      ];
+      
+      const t = Math.sqrt(-2 * Math.log(q));
+      let x = t + (b[0] + t*(b[1] + t*(b[2] + t*(b[3] + t*(b[4] + t*(b[5] + t*(b[6] + t*(b[7] + t*(b[8] + t*(b[9] + t*b[10])))))))) / 
+                (1 + t*(b[0] + t*(b[1] + t*(b[2] + t*(b[3] + t*(b[4] + t*(b[5] + t*(b[6] + t*(b[7] + t*(b[8] + t*b[9])))))))));
+      
+      return sign * x;
     }
     
     // 格式化数值显示
