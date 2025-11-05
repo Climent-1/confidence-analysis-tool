@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AB测试置信分析工具</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -171,6 +172,81 @@
             max-height: 200px;
             overflow-y: auto;
         }
+        
+        /* 表格样式 */
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        .result-table th, .result-table td {
+            padding: 12px 15px;
+            text-align: center;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .result-table th {
+            background-color: #f1f5f9;
+            font-weight: 600;
+        }
+        
+        .result-table tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+        
+        .result-table tr:hover {
+            background-color: #f0f4f8;
+        }
+        
+        /* 颜色编码 */
+        .positive {
+            color: #10b981;
+            font-weight: 600;
+        }
+        
+        .negative {
+            color: #ef4444;
+            font-weight: 600;
+        }
+        
+        .neutral {
+            color: #6b7280;
+        }
+        
+        .significant {
+            background-color: rgba(16, 185, 129, 0.1);
+        }
+        
+        .not-significant {
+            background-color: rgba(239, 68, 68, 0.1);
+        }
+        
+        /* 图标样式 */
+        .trend-up {
+            color: #10b981;
+        }
+        
+        .trend-down {
+            color: #ef4444;
+        }
+        
+        .trend-neutral {
+            color: #6b7280;
+        }
+        
+        .star-rating {
+            color: #fbbf24;
+        }
+        
+        .metric-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e5e7eb;
+        }
     </style>
 </head>
 <body>
@@ -251,8 +327,8 @@
                         所有指标置信分析
                     </div>
                     <div class="card-body">
-                        <div class="row" id="allMetricsResults">
-                            <!-- 所有指标结果将在这里显示 -->
+                        <div id="allMetricsTable">
+                            <!-- 所有指标结果表格将在这里显示 -->
                         </div>
                     </div>
                 </div>
@@ -301,7 +377,7 @@
         const analyzeBtn = document.getElementById('analyzeBtn');
         const resultsSection = document.getElementById('resultsSection');
         const keyMetricsResults = document.getElementById('keyMetricsResults');
-        const allMetricsResults = document.getElementById('allMetricsResults');
+        const allMetricsTable = document.getElementById('allMetricsTable');
         const businessRecommendation = document.getElementById('businessRecommendation');
         const trendChart = document.getElementById('trendChart');
         
@@ -508,37 +584,45 @@
             
             // 对每个指标进行分析
             availableMetrics.forEach(metric => {
-                // 模拟置信分析结果
-                const relativeImprovement = (Math.random() * 40 - 10).toFixed(2); // -10% 到 +30%
-                const pValue = Math.random() * 0.2; // 0 到 0.2
-                const isSignificant = pValue < 0.05;
-                const confidence = isSignificant ? (pValue < 0.01 ? '高' : '中') : '低';
+                results[metric] = {};
                 
-                // 计算综合评分 (0-100)
-                let score = 50;
-                if (isSignificant) score += 30;
-                if (parseFloat(relativeImprovement) > 5) score += 20;
-                score = Math.min(100, score);
+                // 获取所有实验组（非对照组）
+                const experimentalGroups = groupOptions.filter(group => !controlGroups.includes(group));
                 
-                // 置信区间
-                const lowerBound = (parseFloat(relativeImprovement) - 5 - Math.random() * 5).toFixed(2);
-                const upperBound = (parseFloat(relativeImprovement) + 5 + Math.random() * 5).toFixed(2);
-                
-                // 推荐等级
-                let recommendation = '低';
-                if (score >= 80) recommendation = '高';
-                else if (score >= 60) recommendation = '中';
-                
-                results[metric] = {
-                    relativeImprovement,
-                    pValue: pValue.toFixed(4),
-                    isSignificant,
-                    confidence,
-                    score,
-                    confidenceInterval: `[${lowerBound}%, ${upperBound}%]`,
-                    recommendation,
-                    isKeyMetric: selectedMetrics.includes(metric)
-                };
+                // 对每个实验组进行分析
+                experimentalGroups.forEach(expGroup => {
+                    // 模拟置信分析结果
+                    const relativeImprovement = (Math.random() * 40 - 10).toFixed(2); // -10% 到 +30%
+                    const pValue = Math.random() * 0.2; // 0 到 0.2
+                    const isSignificant = pValue < 0.05;
+                    const confidence = isSignificant ? (pValue < 0.01 ? '高' : '中') : '低';
+                    
+                    // 计算综合评分 (0-100)
+                    let score = 50;
+                    if (isSignificant) score += 30;
+                    if (parseFloat(relativeImprovement) > 5) score += 20;
+                    score = Math.min(100, score);
+                    
+                    // 置信区间
+                    const lowerBound = (parseFloat(relativeImprovement) - 5 - Math.random() * 5).toFixed(2);
+                    const upperBound = (parseFloat(relativeImprovement) + 5 + Math.random() * 5).toFixed(2);
+                    
+                    // 推荐等级
+                    let recommendation = '低';
+                    if (score >= 80) recommendation = '高';
+                    else if (score >= 60) recommendation = '中';
+                    
+                    results[metric][expGroup] = {
+                        relativeImprovement,
+                        pValue: pValue.toFixed(4),
+                        isSignificant,
+                        confidence,
+                        score,
+                        confidenceInterval: `[${lowerBound}%, ${upperBound}%]`,
+                        recommendation,
+                        isKeyMetric: selectedMetrics.includes(metric)
+                    };
+                });
             });
             
             return results;
@@ -549,8 +633,8 @@
             // 显示核心指标结果
             displayKeyMetricsResults(results, keyMetrics);
             
-            // 显示所有指标结果
-            displayAllMetricsResults(results);
+            // 显示所有指标结果表格
+            displayAllMetricsTable(results, keyMetrics, controlGroups);
             
             // 显示趋势图表
             displayTrendChart(keyMetrics[0], controlGroups);
@@ -564,7 +648,12 @@
             let html = '<div class="row">';
             
             keyMetrics.forEach(metric => {
-                const result = results[metric];
+                // 获取第一个实验组的结果作为代表
+                const experimentalGroups = Object.keys(results[metric]);
+                if (experimentalGroups.length === 0) return;
+                
+                const firstExpGroup = experimentalGroups[0];
+                const result = results[metric][firstExpGroup];
                 const confidenceClass = `confidence-${result.confidence === '高' ? 'high' : result.confidence === '中' ? 'medium' : 'low'}`;
                 
                 html += `
@@ -577,10 +666,17 @@
                                     <span class="badge bg-primary">核心指标</span>
                                 </div>
                                 <div class="mb-2">
-                                    <strong>相对提升:</strong> ${result.relativeImprovement}%
+                                    <strong>相对提升:</strong> 
+                                    <span class="${parseFloat(result.relativeImprovement) > 0 ? 'positive' : 'negative'}">
+                                        ${result.relativeImprovement}%
+                                        <i class="fas ${parseFloat(result.relativeImprovement) > 0 ? 'fa-arrow-up trend-up' : 'fa-arrow-down trend-down'}"></i>
+                                    </span>
                                 </div>
                                 <div class="mb-2">
-                                    <strong>P值:</strong> ${result.pValue} ${result.isSignificant ? '<span class="badge bg-success">显著</span>' : '<span class="badge bg-secondary">不显著</span>'}
+                                    <strong>P值:</strong> ${result.pValue} 
+                                    ${result.isSignificant ? 
+                                        '<span class="badge bg-success"><i class="fas fa-check-circle"></i> 显著</span>' : 
+                                        '<span class="badge bg-secondary"><i class="fas fa-times-circle"></i> 不显著</span>'}
                                 </div>
                                 <div class="mb-2">
                                     <strong>置信区间:</strong> ${result.confidenceInterval}
@@ -594,7 +690,10 @@
                                 </div>
                                 <div class="mb-2">
                                     <strong>推荐等级:</strong> 
-                                    <span class="badge ${result.recommendation === '高' ? 'bg-success' : result.recommendation === '中' ? 'bg-warning' : 'bg-secondary'}">${result.recommendation}</span>
+                                    <span class="badge ${result.recommendation === '高' ? 'bg-success' : result.recommendation === '中' ? 'bg-warning' : 'bg-secondary'}">
+                                        ${result.recommendation === '高' ? '<i class="fas fa-star"></i>' : ''}
+                                        ${result.recommendation}
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -606,47 +705,104 @@
             keyMetricsResults.innerHTML = html;
         }
         
-        // 显示所有指标结果
-        function displayAllMetricsResults(results) {
-            let html = '';
+        // 显示所有指标结果表格
+        function displayAllMetricsTable(results, keyMetrics, controlGroups) {
+            // 获取所有实验组
+            const experimentalGroups = groupOptions.filter(group => !controlGroups.includes(group));
             
-            // 按推荐等级排序
-            const sortedMetrics = Object.keys(results).sort((a, b) => results[b].score - results[a].score);
+            let html = `
+                <div class="table-responsive">
+                    <table class="table table-bordered result-table">
+                        <thead>
+                            <tr>
+                                <th rowspan="2">指标</th>
+                                <th rowspan="2">实验组</th>
+                                <th colspan="6" class="text-center">置信分析结果</th>
+                            </tr>
+                            <tr>
+                                <th>相对提升</th>
+                                <th>P值</th>
+                                <th>统计显著性</th>
+                                <th>置信区间</th>
+                                <th>综合评分</th>
+                                <th>推荐等级</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
             
-            sortedMetrics.forEach(metric => {
-                const result = results[metric];
-                const confidenceClass = `confidence-${result.confidence === '高' ? 'high' : result.confidence === '中' ? 'medium' : 'low'}`;
+            // 按指标和实验组生成表格行
+            availableMetrics.forEach(metric => {
+                const isKeyMetric = keyMetrics.includes(metric);
                 
-                if (!result.isKeyMetric) {
+                experimentalGroups.forEach((expGroup, index) => {
+                    const result = results[metric][expGroup];
+                    if (!result) return;
+                    
+                    // 确定行样式
+                    const rowClass = result.isSignificant ? 'significant' : 'not-significant';
+                    const improvementClass = parseFloat(result.relativeImprovement) > 0 ? 'positive' : 
+                                            parseFloat(result.relativeImprovement) < 0 ? 'negative' : 'neutral';
+                    
+                    // 确定趋势图标
+                    const trendIcon = parseFloat(result.relativeImprovement) > 0 ? 
+                                     '<i class="fas fa-arrow-up trend-up"></i>' : 
+                                     parseFloat(result.relativeImprovement) < 0 ? 
+                                     '<i class="fas fa-arrow-down trend-down"></i>' : 
+                                     '<i class="fas fa-minus trend-neutral"></i>';
+                    
+                    // 确定星级评分
+                    let stars = '';
+                    if (result.recommendation === '高') {
+                        stars = '<i class="fas fa-star star-rating"></i><i class="fas fa-star star-rating"></i><i class="fas fa-star star-rating"></i>';
+                    } else if (result.recommendation === '中') {
+                        stars = '<i class="fas fa-star star-rating"></i><i class="fas fa-star star-rating"></i><i class="far fa-star star-rating"></i>';
+                    } else {
+                        stars = '<i class="fas fa-star star-rating"></i><i class="far fa-star star-rating"></i><i class="far fa-star star-rating"></i>';
+                    }
+                    
                     html += `
-                        <div class="col-md-4 mb-4">
-                            <div class="card metric-card h-100">
-                                <div class="card-body">
-                                    <h6 class="card-title">${metric}</h6>
-                                    <div class="mb-2">
-                                        <span class="confidence-badge ${confidenceClass}">置信度: ${result.confidence}</span>
-                                    </div>
-                                    <div class="mb-1">
-                                        <small><strong>相对提升:</strong> ${result.relativeImprovement}%</small>
-                                    </div>
-                                    <div class="mb-1">
-                                        <small><strong>P值:</strong> ${result.pValue}</small>
-                                    </div>
-                                    <div class="mb-1">
-                                        <small><strong>置信区间:</strong> ${result.confidenceInterval}</small>
-                                    </div>
-                                    <div class="mb-1">
-                                        <small><strong>推荐等级:</strong> 
-                                        <span class="badge ${result.recommendation === '高' ? 'bg-success' : result.recommendation === '中' ? 'bg-warning' : 'bg-secondary'}">${result.recommendation}</span></small>
+                        <tr class="${rowClass}">
+                            <td>
+                                ${metric} 
+                                ${isKeyMetric ? '<span class="badge bg-primary ms-1">核心</span>' : ''}
+                            </td>
+                            <td>${expGroup}</td>
+                            <td class="${improvementClass}">
+                                ${result.relativeImprovement}% ${trendIcon}
+                            </td>
+                            <td>${result.pValue}</td>
+                            <td>
+                                ${result.isSignificant ? 
+                                    '<span class="badge bg-success"><i class="fas fa-check-circle"></i> 显著</span>' : 
+                                    '<span class="badge bg-secondary"><i class="fas fa-times-circle"></i> 不显著</span>'}
+                            </td>
+                            <td>${result.confidenceInterval}</td>
+                            <td>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar" role="progressbar" style="width: ${result.score}%" 
+                                         aria-valuenow="${result.score}" aria-valuemin="0" aria-valuemax="100">
+                                        ${result.score}
                                     </div>
                                 </div>
-                            </div>
-                        </div>
+                            </td>
+                            <td>
+                                <span class="badge ${result.recommendation === '高' ? 'bg-success' : result.recommendation === '中' ? 'bg-warning' : 'bg-secondary'}">
+                                    ${stars} ${result.recommendation}
+                                </span>
+                            </td>
+                        </tr>
                     `;
-                }
+                });
             });
             
-            allMetricsResults.innerHTML = html;
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            allMetricsTable.innerHTML = html;
         }
         
         // 显示趋势图表
@@ -665,7 +821,7 @@
                 });
                 
                 datasets.push({
-                    label: `${group} ${isControl ? '(对照组)' : '(测试组)'}`,
+                    label: `${group} ${isControl ? '(对照组)' : '(实验组)'}`,
                     data: groupData,
                     borderColor: isControl ? '#3a86ff' : '#ff006e',
                     backgroundColor: isControl ? 'rgba(58, 134, 255, 0.1)' : 'rgba(255, 0, 110, 0.1)',
@@ -718,10 +874,16 @@
         function displayBusinessRecommendation(results, keyMetrics) {
             // 计算总体推荐等级
             let totalScore = 0;
+            let count = 0;
+            
             keyMetrics.forEach(metric => {
-                totalScore += results[metric].score;
+                Object.keys(results[metric]).forEach(expGroup => {
+                    totalScore += results[metric][expGroup].score;
+                    count++;
+                });
             });
-            const avgScore = totalScore / keyMetrics.length;
+            
+            const avgScore = count > 0 ? totalScore / count : 0;
             
             let overallRecommendation = '低';
             let recommendationClass = 'recommendation-low';
@@ -743,26 +905,26 @@
             
             if (overallRecommendation === '高') {
                 recommendationHTML += `
-                    <p><strong>建议:</strong> 测试组表现显著优于对照组，建议全面推广测试组方案。测试组在多个关键指标上表现出稳定的正向提升，具有较高的统计显著性。</p>
+                    <p><strong>建议:</strong> 实验组表现显著优于对照组，建议全面推广实验组方案。实验组在多个关键指标上表现出稳定的正向提升，具有较高的统计显著性。</p>
                     <ul>
-                        <li>立即实施测试组方案到所有用户</li>
+                        <li>立即实施实验组方案到所有用户</li>
                         <li>监控实施后的关键指标变化</li>
                         <li>考虑进一步优化以获取更大收益</li>
                     </ul>
                 `;
             } else if (overallRecommendation === '中') {
                 recommendationHTML += `
-                    <p><strong>建议:</strong> 测试组在某些指标上表现良好，但结果不够显著或一致。建议进行进一步测试或在小范围推广。</p>
+                    <p><strong>建议:</strong> 实验组在某些指标上表现良好，但结果不够显著或一致。建议进行进一步测试或在小范围推广。</p>
                     <ul>
                         <li>考虑延长测试时间以收集更多数据</li>
-                        <li>在小范围用户中推广测试组方案</li>
+                        <li>在小范围用户中推广实验组方案</li>
                         <li>分析不同用户群体的响应差异</li>
                         <li>优化测试方案后重新测试</li>
                     </ul>
                 `;
             } else {
                 recommendationHTML += `
-                    <p><strong>建议:</strong> 测试组未表现出明显优势，或结果不具统计显著性。不建议推广测试组方案。</p>
+                    <p><strong>建议:</strong> 实验组未表现出明显优势，或结果不具统计显著性。不建议推广实验组方案。</p>
                     <ul>
                         <li>停止当前测试方案</li>
                         <li>分析测试失败的原因</li>
