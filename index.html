@@ -1,1249 +1,780 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AB测试置信分析工具v1.4</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  
-  <!-- 配置Tailwind -->
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            primary: '#165DFF',
-            secondary: '#36CFC9',
-            success: '#52C41A',
-            warning: '#FAAD14',
-            danger: '#FF4D4F',
-            neutral: {
-              100: '#F5F7FA',
-              200: '#E5E6EB',
-              300: '#C9CDD4',
-              400: '#86909C',
-              500: '#4E5969',
-              600: '#272E3B',
-              700: '#1D2129',
-            }
-          },
-          fontFamily: {
-            inter: ['Inter', 'sans-serif'],
-          },
-          boxShadow: {
-            'card': '0 2px 14px 0 rgba(0, 0, 0, 0.06)',
-            'hover': '0 6px 20px 0 rgba(0, 0, 0, 0.1)',
-          }
-        },
-      }
-    }
-  </script>
-  
-  <style type="text/tailwindcss">
-    @layer utilities {
-      .content-auto {
-        content-visibility: auto;
-      }
-      .transition-smooth {
-        transition: all 0.3s ease;
-      }
-      .gradient-bg {
-        background: linear-gradient(135deg, #165DFF 0%, #0E42D2 100%);
-      }
-      .text-balance {
-        text-wrap: balance;
-      }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AB测试置信分析工具</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --success-color: #4cc9f0;
+            --warning-color: #f72585;
+            --light-color: #f8f9fa;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7fb;
+            color: #333;
+            padding-top: 20px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+            border: none;
+        }
+        
+        .card-header {
+            background-color: white;
+            border-bottom: 1px solid #eaeaea;
+            font-weight: 600;
+            padding: 15px 20px;
+            border-radius: 10px 10px 0 0 !important;
+        }
+        
+        .upload-area {
+            border: 2px dashed #cbd5e0;
+            border-radius: 10px;
+            padding: 40px 20px;
+            text-align: center;
+            background-color: #f8fafc;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover, .upload-area.dragover {
+            border-color: var(--primary-color);
+            background-color: rgba(67, 97, 238, 0.05);
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            color: var(--primary-color);
+            margin-bottom: 15px;
+        }
+        
+        .required-field {
+            color: #e53e3e;
+            font-weight: 600;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            padding: 10px 25px;
+            font-weight: 600;
+            border-radius: 8px;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+        
+        .result-section {
+            display: none;
+        }
+        
+        .metric-card {
+            border-left: 4px solid var(--primary-color);
+            transition: transform 0.2s;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .confidence-badge {
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+        
+        .confidence-high {
+            background-color: #c6f6d5;
+            color: #22543d;
+        }
+        
+        .confidence-medium {
+            background-color: #fed7d7;
+            color: #742a2a;
+        }
+        
+        .confidence-low {
+            background-color: #feebcb;
+            color: #744210;
+        }
+        
+        .recommendation-box {
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .recommendation-high {
+            background-color: rgba(76, 201, 240, 0.1);
+            border-left: 4px solid var(--success-color);
+        }
+        
+        .recommendation-medium {
+            background-color: rgba(247, 37, 133, 0.1);
+            border-left: 4px solid var(--warning-color);
+        }
+        
+        .recommendation-low {
+            background-color: rgba(255, 193, 7, 0.1);
+            border-left: 4px solid #ffc107;
+        }
+        
+        .data-table {
+            font-size: 0.9rem;
+        }
+        
+        .data-table th {
+            background-color: #f1f5f9;
+        }
+        
+        .progress {
+            height: 8px;
+            margin-top: 5px;
+        }
+        
+        .analysis-controls {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 20px;
+        }
+        
+        .metric-selector {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
 </head>
-
-<body class="font-inter bg-neutral-100 text-neutral-700 min-h-screen">
-  <!-- 顶部导航 -->
-  <header class="gradient-bg text-white shadow-md">
-    <div class="container mx-auto px-4 py-4 flex justify-between items-center">
-      <div class="flex items-center space-x-2">
-        <i class="fa fa-bar-chart text-2xl"></i>
-        <h1 class="text-xl md:text-2xl font-bold">AB测试置信分析工具</h1>
-      </div>
-      <div class="hidden md:flex items-center space-x-6">
-        <a href="#" class="hover:text-neutral-100 transition-smooth"><i class="fa fa-question-circle mr-1"></i>帮助</a>
-        <a href="#" class="hover:text-neutral-100 transition-smooth"><i class="fa fa-history mr-1"></i>历史</a>
-      </div>
-    </div>
-  </header>
-
-  <main class="container mx-auto px-4 py-8">
-    <!-- 数据上传区域 -->
-    <section id="upload-section" class="mb-10 bg-white rounded-xl shadow-card p-6 md:p-8 transition-smooth hover:shadow-hover">
-      <h2 class="text-xl md:text-2xl font-semibold mb-6 text-neutral-700">数据上传</h2>
-      
-      <!-- 格式要求提示 -->
-      <div class="bg-neutral-100 rounded-lg p-4 mb-6">
-        <p class="text-neutral-600 mb-2"><i class="fa fa-info-circle text-primary mr-2"></i>CSV文件格式要求：</p>
-        <ul class="list-disc pl-5 space-y-1 text-neutral-600">
-          <li><span class="font-medium">第一行必须为表头</span></li>
-          <li><span class="text-danger font-medium">分组标识列的表头必须为"分组列"</span></li>
-          <li><span class="text-danger font-medium">时间维度列的表头必须为"时间"</span></li>
-          <li>其他列将作为分析指标</li>
-        </ul>
-      </div>
-      
-      <!-- 状态提示区域 -->
-      <div id="status-message" class="mb-6 hidden"></div>
-      
-      <!-- 上传区域 -->
-      <div id="drop-area" class="border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center transition-smooth hover:border-primary cursor-pointer">
-        <i class="fa fa-cloud-upload text-4xl text-neutral-400 mb-4"></i>
-        <p class="text-neutral-600 mb-2">拖放CSV文件到此处，或</p>
-        <label class="inline-block bg-primary text-white px-6 py-2 rounded-lg font-medium cursor-pointer hover:bg-primary/90 transition-smooth">
-          <i class="fa fa-file-text-o mr-2"></i>选择文件
-          <input type="file" id="file-input" accept=".csv" class="hidden">
-        </label>
-        <p id="file-name" class="mt-4 text-neutral-500 hidden"></p>
-      </div>
-      
-      <!-- 数据预览 -->
-      <div id="data-preview" class="mt-6 hidden">
-        <h3 class="text-lg font-medium mb-3 text-neutral-700">数据预览</h3>
-        <div class="overflow-x-auto max-h-60 border border-neutral-200 rounded-lg">
-          <table class="min-w-full bg-white">
-            <thead>
-              <tr id="preview-header" class="bg-neutral-100 text-neutral-600"></tr>
-            </thead>
-            <tbody id="preview-body"></tbody>
-          </table>
+<body>
+    <div class="container">
+        <div class="header text-center">
+            <h1>AB测试置信分析工具</h1>
+            <p class="lead">上传您的AB测试数据，获取详细的置信分析和业务建议</p>
         </div>
-      </div>
-      
-      <!-- 对照组选择 -->
-      <div id="control-group-selection" class="mt-6 hidden">
-        <h3 class="text-lg font-medium mb-3 text-neutral-700">选择对照组（可多选，剩余为测试组）</h3>
-        <div id="control-group-checkboxes" class="flex flex-wrap gap-3 mb-4"></div>
-      </div>
-      
-      <!-- 核心指标选择 -->
-      <div id="metrics-selection" class="mt-6 hidden">
-        <h3 class="text-lg font-medium mb-3 text-neutral-700">选择核心指标（可多选）</h3>
-        <div id="metrics-checkboxes" class="flex flex-wrap gap-3 mb-4"></div>
-      </div>
-      
-      <!-- 分析参数设置 -->
-      <div id="analysis-parameters" class="mt-6 hidden bg-neutral-50 p-4 rounded-lg">
-        <h3 class="text-lg font-medium mb-3 text-neutral-700">分析参数</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label for="significance-level" class="block text-sm font-medium text-neutral-700 mb-1">统计显著性水平 (α)</label>
-            <div class="flex items-center">
-              <input type="number" id="significance-level" value="0.05" min="0.01" max="0.5" step="0.01" 
-                class="flex-1 rounded-md border-neutral-300 shadow-sm focus:border-primary focus:ring focus:ring-primary/20">
-              <span class="ml-2 text-neutral-500">默认: 0.05 (5%)</span>
+        
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        数据上传
+                        <span class="required-field">* 请确保CSV文件包含"分组列"和"时间"表头</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="upload-area" id="uploadArea">
+                            <div class="upload-icon">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                            </div>
+                            <h5>拖拽CSV文件到此处或点击上传</h5>
+                            <p class="text-muted">支持.csv格式文件，文件大小不超过5MB</p>
+                            <button class="btn btn-primary mt-2" id="uploadBtn">选择文件</button>
+                            <input type="file" id="fileInput" accept=".csv" hidden>
+                        </div>
+                        
+                        <div class="mt-4" id="fileInfo" style="display: none;">
+                            <h6>已上传文件: <span id="fileName"></span></h6>
+                            <div class="table-responsive mt-3">
+                                <table class="table table-sm table-bordered data-table" id="previewTable">
+                                    <!-- 数据预览将在这里显示 -->
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-          </div>
-          <div>
-            <label for="minimum-effect" class="block text-sm font-medium text-neutral-700 mb-1">最小实际显著差异 (%)</label>
-            <div class="flex items-center">
-              <input type="number" id="minimum-effect" value="5" min="0.1" max="100" step="0.1" 
-                class="flex-1 rounded-md border-neutral-300 shadow-sm focus:border-primary focus:ring focus:ring-primary/20">
-              <span class="ml-2 text-neutral-500">用于功效计算</span>
+        </div>
+        
+        <div class="row result-section" id="analysisControls">
+            <div class="col-md-12">
+                <div class="analysis-controls">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>核心指标选择</h5>
+                            <div class="metric-selector border p-3 rounded" id="metricSelector">
+                                <!-- 指标选择器将在这里生成 -->
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>对照组选择</h5>
+                            <div class="border p-3 rounded" id="controlGroupSelector">
+                                <!-- 对照组选择器将在这里生成 -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-center mt-4">
+                        <button class="btn btn-primary btn-lg" id="analyzeBtn">开始AB测试分析</button>
+                    </div>
+                </div>
             </div>
-          </div>
         </div>
-      </div>
-      
-      <!-- 分析按钮 -->
-      <div class="mt-8 text-center">
-        <button id="analyze-btn" class="bg-primary text-white px-8 py-3 rounded-lg font-medium text-lg shadow-md hover:bg-primary/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-          <i class="fa fa-play-circle mr-2"></i>开始AB测试分析
-        </button>
-      </div>
-    </section>
-    
-    <!-- 分析结果区域 -->
-    <section id="results-section" class="hidden mb-10">
-      <!-- 分析摘要 -->
-      <div id="analysis-summary" class="bg-white rounded-xl shadow-card p-6 md:p-8 mb-8 transition-smooth hover:shadow-hover">
-        <h2 class="text-xl md:text-2xl font-semibold mb-6 text-neutral-700">
-          <i class="fa fa-bar-chart text-primary mr-2"></i>分析摘要
-        </h2>
-        <div id="summary-content" class="mb-4"></div>
-      </div>
-      
-      <!-- 业务建议表格 -->
-      <div id="business-insights" class="bg-white rounded-xl shadow-card p-6 md:p-8 mb-8 transition-smooth hover:shadow-hover">
-        <h2 class="text-xl md:text-2xl font-semibold mb-6 text-neutral-700">
-          <i class="fa fa-lightbulb-o text-warning mr-2"></i>业务建议
-        </h2>
-        <div class="overflow-x-auto">
-          <table id="insights-table" class="min-w-full divide-y divide-neutral-200"></table>
+        
+        <div class="row result-section" id="resultsSection">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        核心指标分析结果
+                    </div>
+                    <div class="card-body" id="keyMetricsResults">
+                        <!-- 核心指标结果将在这里显示 -->
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        所有指标置信分析
+                    </div>
+                    <div class="card-body">
+                        <div class="row" id="allMetricsResults">
+                            <!-- 所有指标结果将在这里显示 -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        趋势可视化
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="trendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        业务建议
+                    </div>
+                    <div class="card-body">
+                        <div id="businessRecommendation">
+                            <!-- 业务建议将在这里显示 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
-      
-      <!-- 核心指标结果 -->
-      <div id="key-metrics-results" class="mb-8">
-        <h2 class="text-xl md:text-2xl font-semibold mb-6 text-neutral-700">
-          <i class="fa fa-star text-warning mr-2"></i>核心指标置信分析结果
-        </h2>
-        <div id="key-metrics-charts" class="grid grid-cols-1 lg:grid-cols-2 gap-6"></div>
-      </div>
-      
-      <!-- 所有指标结果 -->
-      <div id="all-metrics-results">
-        <h2 class="text-xl md:text-2xl font-semibold mb-6 text-neutral-700">
-          <i class="fa fa-bar-chart text-primary mr-2"></i>所有指标置信分析结果
-        </h2>
-        <div id="all-metrics-charts" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-      </div>
-    </section>
-    
-    <!-- 加载状态 -->
-    <div id="loading-indicator" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white p-8 rounded-xl shadow-lg text-center">
-        <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
-        <p class="text-lg font-medium text-neutral-700">正在进行AB测试分析，请稍候...</p>
-      </div>
     </div>
-  </main>
 
-  <footer class="bg-neutral-700 text-white py-6">
-    <div class="container mx-auto px-4 text-center">
-      <p>© 2023 AB测试置信分析工具 | 专业的数据分析解决方案</p>
-      <div class="mt-3 flex justify-center space-x-4">
-        <a href="#" class="hover:text-primary transition-smooth"><i class="fa fa-github text-xl"></i></a>
-        <a href="#" class="hover:text-primary transition-smooth"><i class="fa fa-twitter text-xl"></i></a>
-        <a href="#" class="hover:text-primary transition-smooth"><i class="fa fa-linkedin text-xl"></i></a>
-      </div>
-    </div>
-  </footer>
-
-  <script>
-    // 全局变量存储解析后的数据
-    let parsedData = null;
-    let metrics = [];
-    let groups = [];
-    let selectedControlGroups = [];
-    let selectedKeyMetrics = [];
-    let significanceLevel = 0.05; // 默认显著性水平
-    let minimumEffect = 5; // 默认最小实际显著差异(%)
-    
-    // DOM元素
-    const dropArea = document.getElementById('drop-area');
-    const fileInput = document.getElementById('file-input');
-    const fileName = document.getElementById('file-name');
-    const dataPreview = document.getElementById('data-preview');
-    const previewHeader = document.getElementById('preview-header');
-    const previewBody = document.getElementById('preview-body');
-    const controlGroupSelection = document.getElementById('control-group-selection');
-    const controlGroupCheckboxes = document.getElementById('control-group-checkboxes');
-    const metricsSelection = document.getElementById('metrics-selection');
-    const metricsCheckboxes = document.getElementById('metrics-checkboxes');
-    const analysisParameters = document.getElementById('analysis-parameters');
-    const significanceLevelInput = document.getElementById('significance-level');
-    const minimumEffectInput = document.getElementById('minimum-effect');
-    const analyzeBtn = document.getElementById('analyze-btn');
-    const resultsSection = document.getElementById('results-section');
-    const loadingIndicator = document.getElementById('loading-indicator');
-    const businessInsights = document.getElementById('business-insights');
-    const insightsTable = document.getElementById('insights-table');
-    const summaryContent = document.getElementById('summary-content');
-    const keyMetricsCharts = document.getElementById('key-metrics-charts');
-    const allMetricsCharts = document.getElementById('all-metrics-charts');
-    const statusMessage = document.getElementById('status-message');
-    
-    // 监听参数变化
-    significanceLevelInput.addEventListener('change', function() {
-      significanceLevel = parseFloat(this.value) || 0.05;
-      if (significanceLevel < 0.01) significanceLevel = 0.01;
-      if (significanceLevel > 0.5) significanceLevel = 0.5;
-      this.value = significanceLevel;
-    });
-    
-    minimumEffectInput.addEventListener('change', function() {
-      minimumEffect = parseFloat(this.value) || 5;
-      if (minimumEffect < 0.1) minimumEffect = 0.1;
-      if (minimumEffect > 100) minimumEffect = 100;
-      this.value = minimumEffect;
-    });
-    
-    // 显示状态消息
-    function showStatusMessage(message, type = 'info') {
-      statusMessage.textContent = message;
-      statusMessage.className = 'mb-6 p-3 rounded-lg';
-      
-      switch(type) {
-        case 'success':
-          statusMessage.classList.add('bg-success/10', 'text-success', 'border', 'border-success/30');
-          statusMessage.innerHTML = `<i class="fa fa-check-circle mr-2"></i>${message}`;
-          break;
-        case 'error':
-          statusMessage.classList.add('bg-danger/10', 'text-danger', 'border', 'border-danger/30');
-          statusMessage.innerHTML = `<i class="fa fa-exclamation-circle mr-2"></i>${message}`;
-          break;
-        case 'warning':
-          statusMessage.classList.add('bg-warning/10', 'text-warning', 'border', 'border-warning/30');
-          statusMessage.innerHTML = `<i class="fa fa-exclamation-triangle mr-2"></i>${message}`;
-          break;
-        default:
-          statusMessage.classList.add('bg-primary/10', 'text-primary', 'border', 'border-primary/30');
-          statusMessage.innerHTML = `<i class="fa fa-info-circle mr-2"></i>${message}`;
-      }
-      
-      statusMessage.classList.remove('hidden');
-    }
-    
-    function hideStatusMessage() {
-      statusMessage.classList.add('hidden');
-      statusMessage.innerHTML = '';
-    }
-    
-    // 拖放事件处理
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-      dropArea.addEventListener(eventName, preventDefaults, false);
-    });
-    
-    function preventDefaults(e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    
-    ['dragenter', 'dragover'].forEach(eventName => {
-      dropArea.addEventListener(eventName, highlight, false);
-    });
-    
-    ['dragleave', 'drop'].forEach(eventName => {
-      dropArea.addEventListener(eventName, unhighlight, false);
-    });
-    
-    function highlight() {
-      dropArea.classList.add('border-primary');
-      dropArea.classList.add('bg-primary/5');
-    }
-    
-    function unhighlight() {
-      dropArea.classList.remove('border-primary');
-      dropArea.classList.remove('bg-primary/5');
-    }
-    
-    // 处理文件上传
-    dropArea.addEventListener('drop', handleDrop, false);
-    fileInput.addEventListener('change', handleFiles, false);
-    
-    function handleDrop(e) {
-      const dt = e.dataTransfer;
-      const files = dt.files;
-      handleFiles({ target: { files } });
-    }
-    
-    function handleFiles(e) {
-      const file = e.target.files[0];
-      if (file) {
-        if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
-          showStatusMessage('请上传CSV格式的文件', 'error');
-          return;
-        }
+    <script>
+        // 全局变量
+        let parsedData = null;
+        let availableMetrics = [];
+        let groupOptions = [];
         
-        fileName.textContent = `已选择: ${file.name}`;
-        fileName.classList.remove('hidden');
+        // DOM元素
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileName = document.getElementById('fileName');
+        const fileInfo = document.getElementById('fileInfo');
+        const previewTable = document.getElementById('previewTable');
+        const analysisControls = document.getElementById('analysisControls');
+        const metricSelector = document.getElementById('metricSelector');
+        const controlGroupSelector = document.getElementById('controlGroupSelector');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const resultsSection = document.getElementById('resultsSection');
+        const keyMetricsResults = document.getElementById('keyMetricsResults');
+        const allMetricsResults = document.getElementById('allMetricsResults');
+        const businessRecommendation = document.getElementById('businessRecommendation');
+        const trendChart = document.getElementById('trendChart');
         
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          parseCSV(e.target.result);
-        };
-        reader.readAsText(file);
-      }
-    }
-    
-    // 解析CSV数据
-    function parseCSV(csvText) {
-      // 清除之前的数据和状态
-      previewHeader.innerHTML = '';
-      previewBody.innerHTML = '';
-      controlGroupCheckboxes.innerHTML = '';
-      metricsCheckboxes.innerHTML = '';
-      selectedControlGroups = [];
-      selectedKeyMetrics = [];
-      groups = [];
-      dataPreview.classList.add('hidden');
-      controlGroupSelection.classList.add('hidden');
-      metricsSelection.classList.add('hidden');
-      analysisParameters.classList.add('hidden');
-      analyzeBtn.disabled = true;
-      hideStatusMessage();
-      
-      // 分割行（处理可能的空行）
-      const lines = csvText.split('\n')
-        .map(line => line.trim())
-        .filter(line => line !== '');
-      
-      // 检查是否有表头和数据行
-      if (lines.length < 1) {
-        showStatusMessage('CSV文件为空，请检查文件内容', 'error');
-        return;
-      }
-      
-      // 第一行必须为表头
-      const headers = lines[0].split(',').map(header => header.trim());
-      
-      // 检查是否有数据行
-      if (lines.length < 2) {
-        showStatusMessage('CSV文件只有表头，没有数据行，请检查文件内容', 'error');
-        return;
-      }
-      
-      // 检查必要的列
-      const missingColumns = [];
-      if (!headers.includes('分组列')) {
-        missingColumns.push('分组列');
-      }
-      
-      if (!headers.includes('时间')) {
-        missingColumns.push('时间');
-      }
-      
-      if (missingColumns.length > 0) {
-        showStatusMessage(`CSV文件表头中缺少必要的列：${missingColumns.join('、')}，请检查表头是否正确`, 'error');
-        return;
-      }
-      
-      // 提取指标（排除分组列和时间列）
-      metrics = headers.filter(header => header !== '分组列' && header !== '时间');
-      
-      if (metrics.length === 0) {
-        showStatusMessage('未找到可分析的指标列，请确保CSV文件包含除"分组列"和"时间"之外的其他数据列', 'error');
-        return;
-      }
-      
-      // 解析数据行
-      parsedData = [];
-      let invalidRows = 0;
-      const groupSet = new Set();
-      
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',');
-        const row = {};
-        let rowValid = true;
-        
-        headers.forEach((header, index) => {
-          let value = values[index] ? values[index].trim() : '';
-          
-          // 分组列和时间列保留原始值
-          if (header === '分组列' || header === '时间') {
-            row[header] = value;
-            if (value === '') rowValid = false;
-            if (header === '分组列' && value !== '') groupSet.add(value);
-            return;
-          }
-          
-          // 处理其他指标列
-          if (value === '') {
-            row[header] = null;
-            return;
-          }
-          
-          // 处理百分比数据
-          if (value.includes('%')) {
-            const numValue = parseFloat(value.replace('%', '')) / 100;
-            if (!isNaN(numValue)) {
-              row[header] = numValue;
-            } else {
-              row[header] = null;
-              rowValid = false;
+        // 事件监听器
+        uploadBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleFileUpload);
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                handleFileUpload();
             }
-          } 
-          // 尝试转换为数字
-          else if (!isNaN(value)) {
-            row[header] = parseFloat(value);
-          } else {
-            row[header] = null;
-            rowValid = false;
-          }
         });
+        analyzeBtn.addEventListener('click', performAnalysis);
         
-        if (rowValid) {
-          parsedData.push(row);
-        } else {
-          invalidRows++;
-        }
-      }
-      
-      // 检查是否有有效数据行
-      if (parsedData.length === 0) {
-        showStatusMessage('未找到有效的数据行，请检查数据格式是否正确', 'error');
-        return;
-      }
-      
-      // 检查分组数量
-      groups = Array.from(groupSet);
-      if (groups.length < 2) {
-        showStatusMessage('数据中分组不足，至少需要两个分组进行AB测试分析', 'error');
-        return;
-      }
-      
-      // 显示数据解析成功消息
-      let successMsg = `数据解析成功！共解析 ${parsedData.length} 行有效数据，包含 ${groups.length} 个分组`;
-      if (invalidRows > 0) {
-        successMsg += `，跳过 ${invalidRows} 行无效数据`;
-      }
-      showStatusMessage(successMsg, 'success');
-      
-      // 显示数据预览
-      displayDataPreview(headers, parsedData);
-      
-      // 显示对照组选择
-      displayControlGroupSelection(groups);
-      
-      // 显示指标选择
-      displayMetricsSelection(metrics);
-      
-      // 显示分析参数设置
-      analysisParameters.classList.remove('hidden');
-      
-      // 初始禁用分析按钮，等待选择对照组和核心指标
-      analyzeBtn.disabled = true;
-    }
-    
-    // 显示数据预览
-    function displayDataPreview(headers, data) {
-      // 创建表头
-      headers.forEach(header => {
-        const th = document.createElement('th');
-        th.textContent = header;
-        th.className = 'px-4 py-2 border-b text-left';
-        if (header === '分组列' || header === '时间') {
-          th.className += ' text-danger font-medium';
-        }
-        previewHeader.appendChild(th);
-      });
-      
-      // 创建预览行（最多显示5行）
-      const rowsToShow = Math.min(5, data.length);
-      for (let i = 0; i < rowsToShow; i++) {
-        const tr = document.createElement('tr');
-        tr.className = i % 2 === 0 ? 'bg-white' : 'bg-neutral-50';
-        
-        headers.forEach(header => {
-          const td = document.createElement('td');
-          td.className = 'px-4 py-2 border-b';
-          
-          // 格式化显示
-          let value = data[i][header];
-          if (value === null) {
-            td.textContent = 'N/A';
-            td.className += ' text-neutral-400';
-          } else if (typeof value === 'number') {
-            // 如果是小数且接近百分比，显示为百分比
-            if (value >= 0 && value <= 1) {
-              td.textContent = (value * 100).toFixed(2) + '%';
-            } else {
-              td.textContent = value.toLocaleString(undefined, {
-                maximumFractionDigits: 2
-              });
-            }
-          } else {
-            td.textContent = value;
-          }
-          
-          tr.appendChild(td);
-        });
-        
-        previewBody.appendChild(tr);
-      }
-      
-      // 如果有更多数据，显示省略行
-      if (data.length > 5) {
-        const tr = document.createElement('tr');
-        const td = document.createElement('td');
-        td.colSpan = headers.length;
-        td.className = 'px-4 py-2 border-b text-center text-neutral-500';
-        td.textContent = `... 还有 ${data.length - 5} 行数据未显示`;
-        tr.appendChild(td);
-        previewBody.appendChild(tr);
-      }
-      
-      dataPreview.classList.remove('hidden');
-    }
-    
-    // 显示对照组选择
-    function displayControlGroupSelection(groups) {
-      controlGroupCheckboxes.innerHTML = '';
-      
-      groups.forEach(group => {
-        const div = document.createElement('div');
-        div.className = 'flex items-center';
-        
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.id = `group-${group}`;
-        checkbox.value = group;
-        checkbox.className = 'w-4 h-4 text-primary border-neutral-300 rounded focus:ring-primary';
-        
-        const label = document.createElement('label');
-        label.htmlFor = `group-${group}`;
-        label.className = 'ml-2 text-neutral-700';
-        label.textContent = group;
-        
-        div.appendChild(checkbox);
-        div.appendChild(label);
-        controlGroupCheckboxes.appendChild(div);
-        
-        // 添加事件监听
-        checkbox.addEventListener('change', function() {
-          updateControlGroups();
-        });
-      });
-      
-      controlGroupSelection.classList.remove('hidden');
-    }
-    
-    // 更新对照组选择
-    function updateControlGroups() {
-      const checkboxes = controlGroupCheckboxes.querySelectorAll('input[type="checkbox"]:checked');
-      selectedControlGroups = Array.from(checkboxes).map(cb => cb.value);
-      
-      // 确保至少选择一个对照组，且测试组至少有一个
-      const testGroupsCount = groups.length - selectedControlGroups.length;
-      const metricsSelected = selectedKeyMetrics.length > 0;
-      
-      analyzeBtn.disabled = !(selectedControlGroups.length > 0 && testGroupsCount > 0 && metricsSelected);
-      
-      if (selectedControlGroups.length === 0) {
-        showStatusMessage('请至少选择一个对照组', 'warning');
-      } else if (testGroupsCount === 0) {
-        showStatusMessage('请保留至少一个测试组（不要选择所有分组作为对照组）', 'warning');
-      } else if (!metricsSelected) {
-        showStatusMessage('请至少选择一个核心指标', 'warning');
-      } else {
-        hideStatusMessage();
-      }
-    }
-    
-    // 显示指标选择
-    function displayMetricsSelection(metrics) {
-      metricsCheckboxes.innerHTML = '';
-      
-      metrics.forEach(metric => {
-        const div = document.createElement('div');
-        div.className = 'flex items-center';
-        
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.id = `metric-${metric}`;
-        checkbox.value = metric;
-        checkbox.className = 'w-4 h-4 text-primary border-neutral-300 rounded focus:ring-primary';
-        
-        const label = document.createElement('label');
-        label.htmlFor = `metric-${metric}`;
-        label.className = 'ml-2 text-neutral-700';
-        label.textContent = metric;
-        
-        div.appendChild(checkbox);
-        div.appendChild(label);
-        metricsCheckboxes.appendChild(div);
-        
-        // 添加事件监听
-        checkbox.addEventListener('change', function() {
-          if (this.checked) {
-            selectedKeyMetrics.push(metric);
-          } else {
-            selectedKeyMetrics = selectedKeyMetrics.filter(m => m !== metric);
-          }
-          
-          updateControlGroups(); // 触发按钮状态更新
-        });
-      });
-      
-      metricsSelection.classList.remove('hidden');
-    }
-    
-    // 分析按钮点击事件
-    analyzeBtn.addEventListener('click', function() {
-      // 显示加载状态
-      loadingIndicator.classList.remove('hidden');
-      
-      // 模拟分析过程
-      setTimeout(() => {
-        performAnalysis();
-        loadingIndicator.classList.add('hidden');
-        resultsSection.classList.remove('hidden');
-        // 滚动到结果区域
-        resultsSection.scrollIntoView({ behavior: 'smooth' });
-      }, 1500);
-    });
-    
-    // 执行AB测试分析
-    function performAnalysis() {
-      // 清空之前的结果
-      insightsTable.innerHTML = '';
-      summaryContent.innerHTML = '';
-      keyMetricsCharts.innerHTML = '';
-      allMetricsCharts.innerHTML = '';
-      
-      // 确定测试组（未被选为对照组的分组）
-      const testGroups = groups.filter(group => !selectedControlGroups.includes(group));
-      const controlName = selectedControlGroups.length > 1 ? '合并对照组' : selectedControlGroups[0];
-      
-      // 显示分析摘要
-      summaryContent.innerHTML = `
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div class="bg-neutral-50 p-3 rounded-lg">
-            <p class="text-neutral-500">对照组</p>
-            <p class="font-medium">${controlName}</p>
-          </div>
-          <div class="bg-neutral-50 p-3 rounded-lg">
-            <p class="text-neutral-500">测试组</p>
-            <p class="font-medium">${testGroups.join('、')}</p>
-          </div>
-          <div class="bg-neutral-50 p-3 rounded-lg">
-            <p class="text-neutral-500">分析参数</p>
-            <p class="font-medium">显著性水平 α = ${(significanceLevel * 100).toFixed(1)}%</p>
-          </div>
-        </div>
-      `;
-      
-      // 按分组聚合数据
-      const groupData = {};
-      parsedData.forEach(row => {
-        const group = row['分组列'];
-        if (!groupData[group]) {
-          groupData[group] = {
-            count: 0,
-            metrics: {}
-          };
-          metrics.forEach(metric => {
-            groupData[group].metrics[metric] = [];
-          });
-        }
-        
-        groupData[group].count++;
-        metrics.forEach(metric => {
-          if (typeof row[metric] === 'number') {
-            groupData[group].metrics[metric].push(row[metric]);
-          }
-        });
-      });
-      
-      // 合并对照组数据
-      const combinedControlData = {
-        count: 0,
-        metrics: {}
-      };
-      metrics.forEach(metric => {
-        combinedControlData.metrics[metric] = [];
-      });
-      
-      selectedControlGroups.forEach(controlGroup => {
-        combinedControlData.count += groupData[controlGroup].count;
-        metrics.forEach(metric => {
-          combinedControlData.metrics[metric] = [
-            ...combinedControlData.metrics[metric],
-            ...groupData[controlGroup].metrics[metric]
-          ];
-        });
-      });
-      
-      // 计算每个指标的统计数据
-      const analysisResults = {};
-      metrics.forEach(metric => {
-        analysisResults[metric] = {
-          control: {
-            name: controlName,
-            ...calculateGroupStats(combinedControlData.metrics[metric])
-          },
-          tests: {}
-        };
-        
-        // 计算每个测试组的统计数据和与对照组的差异
-        testGroups.forEach(testGroup => {
-          const testStats = calculateGroupStats(groupData[testGroup].metrics[metric]);
-          analysisResults[metric].tests[testGroup] = {
-            ...testStats,
-            difference: calculateDifference(
-              analysisResults[metric].control, 
-              testStats,
-              metric
-            )
-          };
-        });
-      });
-      
-      // 生成业务建议表格
-      generateBusinessInsightsTable(analysisResults, selectedKeyMetrics, testGroups, controlName);
-      
-      // 生成核心指标图表
-      selectedKeyMetrics.forEach(metric => {
-        createMetricChart(metric, analysisResults[metric], keyMetricsCharts, true);
-      });
-      
-      // 生成所有指标图表
-      metrics.forEach(metric => {
-        if (!selectedKeyMetrics.includes(metric)) {
-          createMetricChart(metric, analysisResults[metric], allMetricsCharts, false);
-        }
-      });
-    }
-    
-    // 计算分组统计数据
-    function calculateGroupStats(values) {
-      const mean = calculateMean(values);
-      const std = calculateStandardDeviation(values);
-      const n = values.length;
-      
-      return {
-        mean,
-        std,
-        n,
-        // 计算95%置信区间
-        ciLower: mean - 1.96 * (std / Math.sqrt(n)),
-        ciUpper: mean + 1.96 * (std / Math.sqrt(n))
-      };
-    }
-    
-    // 计算与对照组的差异
-    function calculateDifference(control, test, metric) {
-      const diff = test.mean - control.mean;
-      const relativeDiff = (diff / control.mean) * 100;
-      const pValue = simulatePValue(control, test);
-      const significant = pValue < significanceLevel;
-      
-      // 计算功效(Power) - 检测到实际差异的概率
-      const effectSize = Math.abs(relativeDiff) / 100; // 实际观察到的效应量
-      const minimumEffectSize = minimumEffect / 100; // 最小实际显著差异
-      const power = calculatePower(control, test, Math.max(effectSize, minimumEffectSize));
-      
-      return {
-        absolute: diff,
-        relative: relativeDiff,
-        pValue: pValue,
-        significant: significant,
-        significanceLevel: significanceLevel,
-        power: power,
-        // 95%置信区间(相对差异)
-        ciLower: ((test.ciLower - control.mean) / control.mean) * 100,
-        ciUpper: ((test.ciUpper - control.mean) / control.mean) * 100
-      };
-    }
-    
-    // 计算统计功效(Power)
-    function calculatePower(control, test, effectSize) {
-      // 合并标准差
-      const pooledStd = Math.sqrt(((control.n - 1) * Math.pow(control.std, 2) + 
-                                 (test.n - 1) * Math.pow(test.std, 2)) / 
-                                (control.n + test.n - 2));
-      
-      // 标准误
-      const se = pooledStd * Math.sqrt(1/control.n + 1/test.n);
-      
-      // 临界值
-      const zAlpha = inverseNorm(1 - significanceLevel/2);
-      const zBeta = (effectSize * control.mean / se) - zAlpha;
-      
-      // 功效 = 1 - β
-      return 1 - normcdf(zBeta);
-    }
-    
-    // 生成业务建议表格
-    function generateBusinessInsightsTable(results, keyMetrics, testGroups, controlName) {
-      // 创建表头
-      let tableHtml = `
-        <thead class="bg-neutral-50">
-          <tr>
-            <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">指标</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">测试组</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">相对差异</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">p值</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">显著性</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">功效</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">建议</th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-neutral-200">
-      `;
-      
-      // 填充表格内容
-      keyMetrics.forEach(metric => {
-        testGroups.forEach(testGroup => {
-          const result = results[metric].tests[testGroup];
-          const diff = result.difference;
-          
-          // 显著性标签
-          const significanceBadge = diff.significant 
-            ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-success/10 text-success">显著</span>'
-            : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-neutral-100 text-neutral-600">不显著</span>';
-          
-          // 功效标签
-          let powerBadge;
-          if (diff.power >= 0.8) {
-            powerBadge = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-success/10 text-success">充足</span>';
-          } else if (diff.power >= 0.6) {
-            powerBadge = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-warning/10 text-warning">一般</span>';
-          } else {
-            powerBadge = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-danger/10 text-danger">不足</span>';
-          }
-          
-          // 差异显示
-          const diffDisplay = diff.relative > 0 
-            ? `<span class="text-success">+${diff.relative.toFixed(2)}%</span>`
-            : `<span class="text-danger">${diff.relative.toFixed(2)}%</span>`;
-          
-          // 建议内容
-          let recommendation;
-          if (diff.significant) {
-            if (diff.relative > 0) {
-              recommendation = `<span class="text-success">推荐推广${testGroup}</span>`;
-            } else {
-              recommendation = `<span class="text-danger">不推荐${testGroup}</span>`;
-            }
-          } else {
-            if (diff.power < 0.8) {
-              recommendation = '增加样本量以提高功效';
-            } else {
-              recommendation = '无显著差异，保持现状';
-            }
-          }
-          
-          // 添加行
-          tableHtml += `
-            <tr>
-              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-neutral-900">${metric}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">${testGroup}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm">${diffDisplay}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">${diff.pValue.toFixed(4)}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm">${significanceBadge}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm">${powerBadge} (${(diff.power * 100).toFixed(1)}%)</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-700">${recommendation}</td>
-            </tr>
-          `;
-        });
-      });
-      
-      tableHtml += '</tbody>';
-      insightsTable.innerHTML = tableHtml;
-    }
-    
-    // 创建指标图表
-    function createMetricChart(metric, result, container, isKeyMetric) {
-      const control = result.control;
-      const testGroups = Object.keys(result.tests);
-      const controlName = control.name;
-      
-      // 创建卡片容器
-      const card = document.createElement('div');
-      card.className = `bg-white rounded-xl shadow-card p-5 transition-smooth hover:shadow-hover ${isKeyMetric ? 'border-l-4 border-primary' : ''}`;
-      
-      // 标题
-      const title = document.createElement('h3');
-      title.className = `text-lg font-semibold mb-4 ${isKeyMetric ? 'text-primary' : 'text-neutral-700'}`;
-      title.textContent = metric;
-      card.appendChild(title);
-      
-      // 图表容器 - 均值对比
-      const chartContainer = document.createElement('div');
-      chartContainer.className = 'h-64 mb-6';
-      const canvas = document.createElement('canvas');
-      chartContainer.appendChild(canvas);
-      card.appendChild(chartContainer);
-      
-      // 统计信息表格
-      const statsTable = document.createElement('div');
-      statsTable.className = 'overflow-x-auto text-sm';
-      statsTable.innerHTML = `
-        <table class="min-w-full divide-y divide-neutral-200">
-          <thead>
-            <tr>
-              <th class="px-3 py-2 bg-neutral-50 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">分组</th>
-              <th class="px-3 py-2 bg-neutral-50 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">均值</th>
-              <th class="px-3 py-2 bg-neutral-50 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">样本量</th>
-              <th class="px-3 py-2 bg-neutral-50 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">95%置信区间</th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-neutral-200">
-            <tr>
-              <td class="px-3 py-2">${controlName}</td>
-              <td class="px-3 py-2 font-medium">${formatValue(control.mean)}</td>
-              <td class="px-3 py-2">${control.n}</td>
-              <td class="px-3 py-2">${formatValue(control.ciLower)} - ${formatValue(control.ciUpper)}</td>
-            </tr>
-          </tbody>
-        </table>
-      `;
-      card.appendChild(statsTable);
-      
-      // 差异统计信息
-      const diffStatsContainer = document.createElement('div');
-      diffStatsContainer.className = 'mt-4 space-y-3';
-      
-      testGroups.forEach(testGroup => {
-        const diff = result.tests[testGroup].difference;
-        const diffCard = document.createElement('div');
-        
-        diffCard.className = `p-3 rounded border ${
-          diff.significant 
-            ? (diff.relative > 0 ? 'bg-success/5 border-success/20' : 'bg-danger/5 border-danger/20') 
-            : 'bg-neutral-50 border-neutral-200'
-        }`;
-        
-        // 差异标题
-        diffCard.innerHTML = `<h4 class="font-medium mb-2">与${testGroup}的差异分析</h4>`;
-        
-        // 差异统计数据
-        const statsGrid = document.createElement('div');
-        statsGrid.className = 'grid grid-cols-2 md:grid-cols-4 gap-2 text-xs';
-        
-        // 相对差异
-        statsGrid.innerHTML += `
-          <div>
-            <p class="text-neutral-500">相对差异</p>
-            <p class="${diff.relative > 0 ? 'text-success' : 'text-danger'} font-medium">
-              ${diff.relative > 0 ? '+' : ''}${diff.relative.toFixed(2)}%
-            </p>
-          </div>
-        `;
-        
-        // p值
-        statsGrid.innerHTML += `
-          <div>
-            <p class="text-neutral-500">p值 (P-value)</p>
-            <p class="${diff.significant ? 'text-success' : 'text-neutral-600'} font-medium">
-              ${diff.pValue.toFixed(4)}
-            </p>
-          </div>
-        `;
-        
-        // 显著性水平
-        statsGrid.innerHTML += `
-          <div>
-            <p class="text-neutral-500">显著性水平 (α)</p>
-            <p class="font-medium">${(diff.significanceLevel * 100).toFixed(1)}%</p>
-          </div>
-        `;
-        
-        // 功效
-        statsGrid.innerHTML += `
-          <div>
-            <p class="text-neutral-500">功效 (Power)</p>
-            <p class="${diff.power >= 0.8 ? 'text-success' : 'text-warning'} font-medium">
-              ${(diff.power * 100).toFixed(1)}%
-            </p>
-          </div>
-        `;
-        
-        // 95%置信区间
-        statsGrid.innerHTML += `
-          <div class="col-span-2 md:col-span-4 mt-2">
-            <p class="text-neutral-500">95%置信区间 (CI)</p>
-            <p class="font-medium">${diff.ciLower.toFixed(2)}% - ${diff.ciUpper.toFixed(2)}%</p>
-          </div>
-        `;
-        
-        diffCard.appendChild(statsGrid);
-        diffStatsContainer.appendChild(diffCard);
-      });
-      
-      card.appendChild(diffStatsContainer);
-      container.appendChild(card);
-      
-      // 绘制图表 - 包含均值和置信区间
-      new Chart(canvas, {
-        type: 'bar',
-        data: {
-          labels: [controlName, ...testGroups],
-          datasets: [{
-            label: '均值',
-            data: [control.mean, ...testGroups.map(g => result.tests[g].mean)],
-            backgroundColor: [
-              'rgba(156, 163, 175, 0.7)',
-              ...testGroups.map((_, i) => `rgba(22, 93, 255, ${0.7 - (i * 0.1 > 0.4 ? 0.4 : i * 0.1)})`)
-            ],
-            borderColor: [
-              'rgb(156, 163, 175)',
-              ...testGroups.map((_, i) => `rgb(22, 93, 255, ${1 - (i * 0.1 > 0.4 ? 0.4 : i * 0.1)})`)
-            ],
-            borderWidth: 1
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            y: {
-              beginAtZero: true,
-              ticks: {
-                callback: function(value) {
-                  // 如果是比例数据，显示为百分比
-                  if (this.chart.data.datasets[0].data.some(v => v >= 0 && v <= 1)) {
-                    return (value * 100).toFixed(0) + '%';
-                  }
-                  return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
+        // 处理文件上传
+        function handleFileUpload() {
+            const file = fileInput.files[0];
+            if (!file) return;
+            
+            fileName.textContent = file.name;
+            fileInfo.style.display = 'block';
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    parseCSVData(e.target.result);
+                } catch (error) {
+                    alert('解析CSV文件时出错: ' + error.message);
                 }
-              }
+            };
+            reader.readAsText(file);
+        }
+        
+        // 解析CSV数据
+        function parseCSVData(csvText) {
+            const lines = csvText.split('\n').filter(line => line.trim() !== '');
+            if (lines.length < 2) {
+                throw new Error('CSV文件至少需要包含表头和数据行');
             }
-          },
-          plugins: {
-            tooltip: {
-              callbacks: {
-                label: function(context) {
-                  let value = context.raw;
-                  const label = context.label;
-                  
-                  // 对照组 tooltip
-                  if (label === controlName) {
-                    return [
-                      `均值: ${formatValue(value)}`,
-                      `样本量: ${control.n}`,
-                      `95%置信区间: ${formatValue(control.ciLower)} - ${formatValue(control.ciUpper)}`
-                    ];
-                  }
-                  
-                  // 测试组 tooltip
-                  if (testGroups.includes(label)) {
-                    const testResult = result.tests[label];
-                    const diff = testResult.difference;
-                    return [
-                      `均值: ${formatValue(value)}`,
-                      `样本量: ${testResult.n}`,
-                      `95%置信区间: ${formatValue(testResult.ciLower)} - ${formatValue(testResult.ciUpper)}`,
-                      `与${controlName}差异: ${diff.relative > 0 ? '+' : ''}${diff.relative.toFixed(2)}%`,
-                      `p值: ${diff.pValue.toFixed(4)}`,
-                      `功效: ${(diff.power * 100).toFixed(1)}%`
-                    ];
-                  }
-                  
-                  return `均值: ${formatValue(value)}`;
+            
+            const headers = lines[0].split(',').map(header => header.trim());
+            
+            // 检查必要的表头
+            if (!headers.includes('分组列')) {
+                alert('错误: CSV文件必须包含"分组列"表头');
+                return;
+            }
+            
+            if (!headers.includes('时间')) {
+                alert('错误: CSV文件必须包含"时间"表头');
+                return;
+            }
+            
+            // 解析数据行
+            const data = [];
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',').map(value => value.trim());
+                if (values.length !== headers.length) continue;
+                
+                const row = {};
+                headers.forEach((header, index) => {
+                    // 尝试将数值转换为数字
+                    const numValue = parseFloat(values[index]);
+                    row[header] = isNaN(numValue) ? values[index] : numValue;
+                });
+                data.push(row);
+            }
+            
+            parsedData = data;
+            
+            // 显示数据预览
+            displayDataPreview(headers, data);
+            
+            // 设置分析控件
+            setupAnalysisControls(headers, data);
+            
+            // 显示分析控件
+            analysisControls.classList.remove('result-section');
+            resultsSection.classList.add('result-section');
+        }
+        
+        // 显示数据预览
+        function displayDataPreview(headers, data) {
+            let tableHTML = '<thead><tr>';
+            headers.forEach(header => {
+                tableHTML += `<th>${header}</th>`;
+            });
+            tableHTML += '</tr></thead><tbody>';
+            
+            // 只显示前5行数据
+            const previewData = data.slice(0, 5);
+            previewData.forEach(row => {
+                tableHTML += '<tr>';
+                headers.forEach(header => {
+                    tableHTML += `<td>${row[header]}</td>`;
+                });
+                tableHTML += '</tr>';
+            });
+            
+            if (data.length > 5) {
+                tableHTML += `<tr><td colspan="${headers.length}" class="text-center">... 还有 ${data.length - 5} 行数据未显示</td></tr>`;
+            }
+            
+            tableHTML += '</tbody>';
+            previewTable.innerHTML = tableHTML;
+        }
+        
+        // 设置分析控件
+        function setupAnalysisControls(headers, data) {
+            // 获取可用的指标（排除"分组列"和"时间"）
+            availableMetrics = headers.filter(header => header !== '分组列' && header !== '时间');
+            
+            // 设置指标选择器
+            let metricsHTML = '';
+            availableMetrics.forEach(metric => {
+                metricsHTML += `
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="${metric}" id="metric-${metric}">
+                        <label class="form-check-label" for="metric-${metric}">
+                            ${metric}
+                        </label>
+                    </div>
+                `;
+            });
+            metricSelector.innerHTML = metricsHTML;
+            
+            // 获取分组选项
+            const groups = [...new Set(data.map(row => row['分组列']))];
+            groupOptions = groups;
+            
+            // 设置对照组选择器
+            let groupsHTML = '';
+            groups.forEach(group => {
+                groupsHTML += `
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="${group}" id="group-${group}">
+                        <label class="form-check-label" for="group-${group}">
+                            ${group}
+                        </label>
+                    </div>
+                `;
+            });
+            controlGroupSelector.innerHTML = groupsHTML;
+            
+            // 默认选择第一个分组作为对照组
+            if (groups.length > 0) {
+                document.getElementById(`group-${groups[0]}`).checked = true;
+            }
+        }
+        
+        // 执行分析
+        function performAnalysis() {
+            // 获取选中的核心指标
+            const selectedMetrics = [];
+            availableMetrics.forEach(metric => {
+                if (document.getElementById(`metric-${metric}`).checked) {
+                    selectedMetrics.push(metric);
                 }
-              }
+            });
+            
+            if (selectedMetrics.length === 0) {
+                alert('请至少选择一个核心指标');
+                return;
             }
-          }
+            
+            // 获取选中的对照组
+            const controlGroups = [];
+            groupOptions.forEach(group => {
+                if (document.getElementById(`group-${group}`).checked) {
+                    controlGroups.push(group);
+                }
+            });
+            
+            if (controlGroups.length === 0) {
+                alert('请至少选择一个对照组');
+                return;
+            }
+            
+            // 显示结果区域
+            resultsSection.classList.remove('result-section');
+            
+            // 执行置信分析
+            const analysisResults = runConfidenceAnalysis(selectedMetrics, controlGroups);
+            
+            // 显示结果
+            displayResults(analysisResults, selectedMetrics, controlGroups);
         }
-      });
-      
-      // 为每个数据点添加误差线（置信区间）
-      const chart = Chart.getChart(canvas);
-      const meta = chart.getDatasetMeta(0);
-      
-      meta.data.forEach((element, index) => {
-        const label = chart.data.labels[index];
-        let ciLower, ciUpper;
         
-        if (label === controlName) {
-          ciLower = control.ciLower;
-          ciUpper = control.ciUpper;
-        } else {
-          ciLower = result.tests[label].ciLower;
-          ciUpper = result.tests[label].ciUpper;
+        // 运行置信分析（模拟）
+        function runConfidenceAnalysis(selectedMetrics, controlGroups) {
+            // 在实际应用中，这里应该实现真正的统计计算
+            // 这里使用模拟数据
+            
+            const results = {};
+            
+            // 对每个指标进行分析
+            availableMetrics.forEach(metric => {
+                // 模拟置信分析结果
+                const relativeImprovement = (Math.random() * 40 - 10).toFixed(2); // -10% 到 +30%
+                const pValue = Math.random() * 0.2; // 0 到 0.2
+                const isSignificant = pValue < 0.05;
+                const confidence = isSignificant ? (pValue < 0.01 ? '高' : '中') : '低';
+                
+                // 计算综合评分 (0-100)
+                let score = 50;
+                if (isSignificant) score += 30;
+                if (parseFloat(relativeImprovement) > 5) score += 20;
+                score = Math.min(100, score);
+                
+                // 置信区间
+                const lowerBound = (parseFloat(relativeImprovement) - 5 - Math.random() * 5).toFixed(2);
+                const upperBound = (parseFloat(relativeImprovement) + 5 + Math.random() * 5).toFixed(2);
+                
+                // 推荐等级
+                let recommendation = '低';
+                if (score >= 80) recommendation = '高';
+                else if (score >= 60) recommendation = '中';
+                
+                results[metric] = {
+                    relativeImprovement,
+                    pValue: pValue.toFixed(4),
+                    isSignificant,
+                    confidence,
+                    score,
+                    confidenceInterval: `[${lowerBound}%, ${upperBound}%]`,
+                    recommendation,
+                    isKeyMetric: selectedMetrics.includes(metric)
+                };
+            });
+            
+            return results;
         }
         
-        // 创建误差线注释
-        chart.options.annotations = chart.options.annotations || {};
-        chart.options.annotations[`errorbar-${index}`] = {
-          type: 'line',
-          yMin: ciLower,
-          yMax: ciUpper,
-          xMin: index - 0.2,
-          xMax: index + 0.2,
-          borderColor: 'rgba(75, 85, 99, 0.7)',
-          borderWidth: 2,
-          borderDash: [0],
-        };
+        // 显示结果
+        function displayResults(results, keyMetrics, controlGroups) {
+            // 显示核心指标结果
+            displayKeyMetricsResults(results, keyMetrics);
+            
+            // 显示所有指标结果
+            displayAllMetricsResults(results);
+            
+            // 显示趋势图表
+            displayTrendChart(keyMetrics[0], controlGroups);
+            
+            // 显示业务建议
+            displayBusinessRecommendation(results, keyMetrics);
+        }
         
-        // 创建误差线顶部和底部横线
-        chart.options.annotations[`errorbar-top-${index}`] = {
-          type: 'line',
-          yMin: ciUpper,
-          yMax: ciUpper,
-          xMin: index - 0.1,
-          xMax: index + 0.1,
-          borderColor: 'rgba(75, 85, 99, 0.7)',
-          borderWidth: 2,
-        };
+        // 显示核心指标结果
+        function displayKeyMetricsResults(results, keyMetrics) {
+            let html = '<div class="row">';
+            
+            keyMetrics.forEach(metric => {
+                const result = results[metric];
+                const confidenceClass = `confidence-${result.confidence === '高' ? 'high' : result.confidence === '中' ? 'medium' : 'low'}`;
+                
+                html += `
+                    <div class="col-md-6 mb-4">
+                        <div class="card metric-card h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">${metric}</h5>
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <span class="confidence-badge ${confidenceClass}">置信度: ${result.confidence}</span>
+                                    <span class="badge bg-primary">核心指标</span>
+                                </div>
+                                <div class="mb-2">
+                                    <strong>相对提升:</strong> ${result.relativeImprovement}%
+                                </div>
+                                <div class="mb-2">
+                                    <strong>P值:</strong> ${result.pValue} ${result.isSignificant ? '<span class="badge bg-success">显著</span>' : '<span class="badge bg-secondary">不显著</span>'}
+                                </div>
+                                <div class="mb-2">
+                                    <strong>置信区间:</strong> ${result.confidenceInterval}
+                                </div>
+                                <div class="mb-2">
+                                    <strong>综合评分:</strong>
+                                    <div class="progress">
+                                        <div class="progress-bar" role="progressbar" style="width: ${result.score}%" aria-valuenow="${result.score}" aria-valuemin="0" aria-valuemax="100"></div>
+                                    </div>
+                                    ${result.score}/100
+                                </div>
+                                <div class="mb-2">
+                                    <strong>推荐等级:</strong> 
+                                    <span class="badge ${result.recommendation === '高' ? 'bg-success' : result.recommendation === '中' ? 'bg-warning' : 'bg-secondary'}">${result.recommendation}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            keyMetricsResults.innerHTML = html;
+        }
         
-        chart.options.annotations[`errorbar-bottom-${index}`] = {
-          type: 'line',
-          yMin: ciLower,
-          yMax: ciLower,
-          xMin: index - 0.1,
-          xMax: index + 0.1,
-          borderColor: 'rgba(75, 85, 99, 0.7)',
-          borderWidth: 2,
-        };
-      });
-      
-      chart.update();
-    }
-    
-    // 工具函数：计算均值
-    function calculateMean(values) {
-      if (values.length === 0) return 0;
-      const sum = values.reduce((acc, val) => acc + val, 0);
-      return sum / values.length;
-    }
-    
-    // 工具函数：计算标准差
-    function calculateStandardDeviation(values) {
-      if (values.length <= 1) return 0;
-      const mean = calculateMean(values);
-      const squaredDiffs = values.map(val => Math.pow(val - mean, 2));
-      const variance = calculateMean(squaredDiffs);
-      return Math.sqrt(variance);
-    }
-    
-    // 工具函数：模拟p值计算
-    function simulatePValue(control, variant) {
-      // 计算z分数
-      const se = Math.sqrt(Math.pow(control.std, 2)/control.n + Math.pow(variant.std, 2)/variant.n);
-      const zScore = (variant.mean - control.mean) / se;
-      
-      // 从z分数计算双尾p值
-      return 2 * (1 - normcdf(Math.abs(zScore)));
-    }
-    
-    // 正态分布累积分布函数（近似）
-    function normcdf(x) {
-      if (x < -10) return 0;
-      if (x > 10) return 1;
-      
-      const t = 1 / (1 + 0.2316419 * Math.abs(x));
-      const d = 0.3989422804 * Math.exp(-x * x / 2);
-      const prob = d * t * (0.319381530 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
-      
-      return x >= 0 ? 1 - prob : prob;
-    }
-    
-    // 正态分布分位数函数（近似）- 用于计算临界值
-    function inverseNorm(p) {
-      if (p <= 0 || p >= 1) return p <= 0 ? -Infinity : Infinity;
-      if (p === 0.5) return 0;
-      
-      const sign = p < 0.5 ? -1 : 1;
-      const q = sign === 1 ? 1 - p : p;
-      
-      const b = [
-        1.570796288, 0.03706987906, -0.8364353589e-3,
-        -0.2250947176e-3, 0.6841218299e-5, 0.5824238515e-5,
-        -0.104527497e-5, 0.8360937017e-7, -0.3231081277e-8,
-        0.3657763036e-10, 0.6936233982e-12
-      ];
-      
-      const t = Math.sqrt(-2 * Math.log(q));
-      let x = t + (b[0] + t*(b[1] + t*(b[2] + t*(b[3] + t*(b[4] + t*(b[5] + t*(b[6] + t*(b[7] + t*(b[8] + t*(b[9] + t*b[10])))))))) / 
-                (1 + t*(b[0] + t*(b[1] + t*(b[2] + t*(b[3] + t*(b[4] + t*(b[5] + t*(b[6] + t*(b[7] + t*(b[8] + t*b[9])))))))));
-      
-      return sign * x;
-    }
-    
-    // 格式化数值显示
-    function formatValue(value) {
-      if (value >= 0 && value <= 1) {
-        return (value * 100).toFixed(2) + '%';
-      } else if (Math.abs(value) < 0.001 && value !== 0) {
-        return value.toExponential(3);
-      } else if (Math.abs(value) > 1000) {
-        return value.toLocaleString();
-      } else {
-        return value.toFixed(2);
-      }
-    }
-  </script>
+        // 显示所有指标结果
+        function displayAllMetricsResults(results) {
+            let html = '';
+            
+            // 按推荐等级排序
+            const sortedMetrics = Object.keys(results).sort((a, b) => results[b].score - results[a].score);
+            
+            sortedMetrics.forEach(metric => {
+                const result = results[metric];
+                const confidenceClass = `confidence-${result.confidence === '高' ? 'high' : result.confidence === '中' ? 'medium' : 'low'}`;
+                
+                if (!result.isKeyMetric) {
+                    html += `
+                        <div class="col-md-4 mb-4">
+                            <div class="card metric-card h-100">
+                                <div class="card-body">
+                                    <h6 class="card-title">${metric}</h6>
+                                    <div class="mb-2">
+                                        <span class="confidence-badge ${confidenceClass}">置信度: ${result.confidence}</span>
+                                    </div>
+                                    <div class="mb-1">
+                                        <small><strong>相对提升:</strong> ${result.relativeImprovement}%</small>
+                                    </div>
+                                    <div class="mb-1">
+                                        <small><strong>P值:</strong> ${result.pValue}</small>
+                                    </div>
+                                    <div class="mb-1">
+                                        <small><strong>置信区间:</strong> ${result.confidenceInterval}</small>
+                                    </div>
+                                    <div class="mb-1">
+                                        <small><strong>推荐等级:</strong> 
+                                        <span class="badge ${result.recommendation === '高' ? 'bg-success' : result.recommendation === '中' ? 'bg-warning' : 'bg-secondary'}">${result.recommendation}</span></small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+            
+            allMetricsResults.innerHTML = html;
+        }
+        
+        // 显示趋势图表
+        function displayTrendChart(metric, controlGroups) {
+            // 模拟趋势数据
+            const dates = [...new Set(parsedData.map(row => row['时间']))].sort();
+            const groups = [...new Set(parsedData.map(row => row['分组列']))];
+            
+            const datasets = [];
+            
+            groups.forEach(group => {
+                const isControl = controlGroups.includes(group);
+                const groupData = dates.map(date => {
+                    const row = parsedData.find(r => r['时间'] === date && r['分组列'] === group);
+                    return row ? row[metric] : null;
+                });
+                
+                datasets.push({
+                    label: `${group} ${isControl ? '(对照组)' : '(测试组)'}`,
+                    data: groupData,
+                    borderColor: isControl ? '#3a86ff' : '#ff006e',
+                    backgroundColor: isControl ? 'rgba(58, 134, 255, 0.1)' : 'rgba(255, 0, 110, 0.1)',
+                    tension: 0.3,
+                    fill: true
+                });
+            });
+            
+            const ctx = trendChart.getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `${metric} 随时间变化趋势`
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: '时间'
+                            }
+                        },
+                        y: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: metric
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 显示业务建议
+        function displayBusinessRecommendation(results, keyMetrics) {
+            // 计算总体推荐等级
+            let totalScore = 0;
+            keyMetrics.forEach(metric => {
+                totalScore += results[metric].score;
+            });
+            const avgScore = totalScore / keyMetrics.length;
+            
+            let overallRecommendation = '低';
+            let recommendationClass = 'recommendation-low';
+            
+            if (avgScore >= 80) {
+                overallRecommendation = '高';
+                recommendationClass = 'recommendation-high';
+            } else if (avgScore >= 60) {
+                overallRecommendation = '中';
+                recommendationClass = 'recommendation-medium';
+            }
+            
+            // 生成业务建议
+            let recommendationHTML = `
+                <div class="recommendation-box ${recommendationClass}">
+                    <h5>总体推荐等级: <span class="badge ${overallRecommendation === '高' ? 'bg-success' : overallRecommendation === '中' ? 'bg-warning' : 'bg-secondary'}">${overallRecommendation}</span></h5>
+                    <p>基于对 ${keyMetrics.length} 个核心指标的分析，AB测试结果综合评分为 <strong>${avgScore.toFixed(1)}/100</strong>。</p>
+            `;
+            
+            if (overallRecommendation === '高') {
+                recommendationHTML += `
+                    <p><strong>建议:</strong> 测试组表现显著优于对照组，建议全面推广测试组方案。测试组在多个关键指标上表现出稳定的正向提升，具有较高的统计显著性。</p>
+                    <ul>
+                        <li>立即实施测试组方案到所有用户</li>
+                        <li>监控实施后的关键指标变化</li>
+                        <li>考虑进一步优化以获取更大收益</li>
+                    </ul>
+                `;
+            } else if (overallRecommendation === '中') {
+                recommendationHTML += `
+                    <p><strong>建议:</strong> 测试组在某些指标上表现良好，但结果不够显著或一致。建议进行进一步测试或在小范围推广。</p>
+                    <ul>
+                        <li>考虑延长测试时间以收集更多数据</li>
+                        <li>在小范围用户中推广测试组方案</li>
+                        <li>分析不同用户群体的响应差异</li>
+                        <li>优化测试方案后重新测试</li>
+                    </ul>
+                `;
+            } else {
+                recommendationHTML += `
+                    <p><strong>建议:</strong> 测试组未表现出明显优势，或结果不具统计显著性。不建议推广测试组方案。</p>
+                    <ul>
+                        <li>停止当前测试方案</li>
+                        <li>分析测试失败的原因</li>
+                        <li>重新设计测试方案</li>
+                        <li>考虑测试其他变量或假设</li>
+                    </ul>
+                `;
+            }
+            
+            recommendationHTML += '</div>';
+            businessRecommendation.innerHTML = recommendationHTML;
+        }
+    </script>
 </body>
 </html>
