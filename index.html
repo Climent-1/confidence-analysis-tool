@@ -1,319 +1,745 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AB测试分析工具（V1.3）</title> <!-- 版本号更新为V1.3 -->
-    <!-- 外部资源（确保CDN链接有效） -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
-    <!-- 样式配置 -->
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#2563eb',
-                        success: '#10b981',
-                        warning: '#f59e0b',
-                        danger: '#ef4444',
-                    },
-                }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AB测试置信分析工具v1.1</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- 配置Tailwind -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#165DFF',
+            secondary: '#36CFC9',
+            success: '#52C41A',
+            warning: '#FAAD14',
+            danger: '#FF4D4F',
+            neutral: {
+              100: '#F5F7FA',
+              200: '#E5E6EB',
+              300: '#C9CDD4',
+              400: '#86909C',
+              500: '#4E5969',
+              600: '#272E3B',
+              700: '#1D2129',
             }
-        }
-    </script>
-    <style type="text/tailwindcss">
-        @layer utilities {
-            .btn {
-                @apply px-4 py-2 rounded-md font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
-            }
-            .btn-primary {
-                @apply bg-primary text-white hover:bg-primary/90 focus:ring-primary/50;
-            }
-            .input-field {
-                @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary;
-            }
-        }
-    </style>
+          },
+          fontFamily: {
+            inter: ['Inter', 'sans-serif'],
+          },
+          boxShadow: {
+            'card': '0 2px 14px 0 rgba(0, 0, 0, 0.06)',
+            'hover': '0 6px 20px 0 rgba(0, 0, 0, 0.1)',
+          }
+        },
+      }
+    }
+  </script>
+  
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .transition-smooth {
+        transition: all 0.3s ease;
+      }
+      .gradient-bg {
+        background: linear-gradient(135deg, #165DFF 0%, #0E42D2 100%);
+      }
+      .text-balance {
+        text-wrap: balance;
+      }
+    }
+  </style>
 </head>
-<body class="bg-gray-50 text-gray-800 min-h-screen p-4 md:p-6">
-    <!-- 头部标题 -->
-    <header class="mb-8 text-center">
-        <h1 class="text-2xl md:text-3xl font-bold text-primary mb-2">AB测试分析工具（V1.3）</h1>
-        <p class="text-gray-600">支持每日维度AB测试+置信区间分析，自动生成可视化报告</p>
-    </header>
 
-    <main class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- 左侧：数据导入与参数配置 -->
-        <div class="lg:col-span-1 space-y-6">
-            <!-- 数据导入区域（核心修复：简化交互逻辑，确保响应） -->
-            <div class="bg-white rounded-lg shadow p-6">
-                <h2 class="text-lg font-semibold mb-4 flex items-center">
-                    <i class="fa fa-upload text-primary mr-2"></i>数据导入
-                </h2>
-                <!-- 数据格式提示（保留强制要求） -->
-                <div class="mb-4 p-3 bg-amber-50 rounded-md border border-amber-100">
-                    <p class="text-sm text-amber-800 mb-1">
-                        <i class="fa fa-exclamation-circle mr-1"></i>
-                        <span class="text-red-600 font-medium">强制要求：</span>
-                    </p>
-                    <ul class="text-sm text-amber-800 list-disc list-inside pl-2 space-y-1">
-                        <li>CSV文件必须包含“<span class="text-red-600 font-medium">分组列</span>”（区分对照组/实验组）</li>
-                        <li>CSV文件必须包含“<span class="text-red-600 font-medium">时间</span>”（格式如2025-11-05）</li>
-                        <li>其他列为数值型指标（如转化率、营收，用于置信分析）</li>
-                    </ul>
-                </div>
-                <!-- 文件上传（修复：简化结构，确保点击/拖放都触发） -->
-                <div id="dropZone" class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-all">
-                    <i class="fa fa-file-text-o text-3xl text-gray-400 mb-2"></i>
-                    <p class="text-gray-500 mb-4">拖放CSV文件到此处，或点击下方按钮选择</p>
-                    <!-- 修复1：单独按钮触发，避免label嵌套问题 -->
-                    <button id="selectFileBtn" class="btn btn-primary mb-2">
-                        <i class="fa fa-file-o mr-1"></i>选择CSV文件
-                    </button>
-                    <input type="file" id="fileInput" accept=".csv" class="hidden" />
-                    <!-- 修复2：明确显示文件状态，便于排查 -->
-                    <p id="fileStatus" class="mt-2 text-sm text-gray-500">
-                        <i class="fa fa-info-circle mr-1"></i>未选择文件
-                    </p>
-                </div>
-            </div>
+<body class="font-inter bg-neutral-100 text-neutral-700 min-h-screen">
+  <!-- 顶部导航 -->
+  <header class="gradient-bg text-white shadow-md">
+    <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+      <div class="flex items-center space-x-2">
+        <i class="fa fa-bar-chart text-2xl"></i>
+        <h1 class="text-xl md:text-2xl font-bold">AB测试置信分析工具</h1>
+      </div>
+      <div class="hidden md:flex items-center space-x-6">
+        <a href="#" class="hover:text-neutral-100 transition-smooth"><i class="fa fa-question-circle mr-1"></i>帮助</a>
+        <a href="#" class="hover:text-neutral-100 transition-smooth"><i class="fa fa-history mr-1"></i>历史</a>
+      </div>
+    </div>
+  </header>
 
-            <!-- 参数配置区域（修复：确保加载逻辑完整） -->
-            <div id="configSection" class="bg-white rounded-lg shadow p-6 hidden">
-                <h2 class="text-lg font-semibold mb-4 flex items-center">
-                    <i class="fa fa-cog text-primary mr-2"></i>分析配置
-                </h2>
-
-                <!-- 1. 分组列选择（支持多选对照组） -->
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        对照组选择（可多选，剩余自动为实验组）
-                    </label>
-                    <div id="groupSelector" class="space-y-2 max-h-32 overflow-y-auto p-2 border border-gray-200 rounded-md">
-                        <!-- 修复3：默认显示加载提示，避免空白 -->
-                        <p class="text-gray-500 text-sm text-center" id="groupLoadingTip">
-                            <i class="fa fa-spinner fa-spin mr-1"></i>加载分组数据中...
-                        </p>
-                        <div id="groupOptions" class="hidden"></div>
-                    </div>
-                </div>
-
-                <!-- 2. 核心指标选择（用于优先展示置信结果） -->
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        核心指标选择（可多选，优先展示置信分析结果）
-                    </label>
-                    <div id="metricSelector" class="space-y-2">
-                        <p class="text-gray-500 text-sm text-center" id="metricLoadingTip">
-                            <i class="fa fa-spinner fa-spin mr-1"></i>加载指标数据中...
-                        </p>
-                        <div id="metricOptions" class="hidden"></div>
-                    </div>
-                </div>
-
-                <!-- 3. 置信分析参数（保留核心配置） -->
-                <div class="mb-4">
-                    <label for="confidenceLevel" class="block text-sm font-medium text-gray-700 mb-2">
-                        置信水平（默认95%，用于计算置信区间）
-                    </label>
-                    <div class="flex items-center space-x-2">
-                        <input type="range" id="confidenceLevel" min="90" max="99" value="95" step="1" class="w-full" />
-                        <span id="confidenceLevelText" class="text-sm font-medium w-10 text-center">95%</span>
-                    </div>
-                </div>
-
-                <div class="mb-6">
-                    <label class="flex items-center space-x-2 cursor-pointer">
-                        <input type="checkbox" id="excludeOutliers" class="rounded text-primary focus:ring-primary" checked />
-                        <span class="text-sm text-gray-700">检测并排除异常值（避免影响置信结果）</span>
-                    </label>
-                </div>
-
-                <!-- 4. 开始分析按钮（修复：添加加载状态，避免重复点击） -->
-                <button id="startAnalysisBtn" class="btn btn-primary w-full">
-                    <i class="fa fa-play mr-1"></i>开始AB测试+置信分析
-                </button>
-                <button id="analysisLoadingBtn" class="btn btn-primary w-full hidden">
-                    <i class="fa fa-spinner fa-spin mr-1"></i>分析中...
-                </button>
-            </div>
+  <main class="container mx-auto px-4 py-8">
+    <!-- 数据上传区域 -->
+    <section id="upload-section" class="mb-10 bg-white rounded-xl shadow-card p-6 md:p-8 transition-smooth hover:shadow-hover">
+      <h2 class="text-xl md:text-2xl font-semibold mb-6 text-neutral-700">数据上传</h2>
+      
+      <!-- 格式要求提示 -->
+      <div class="bg-neutral-100 rounded-lg p-4 mb-6">
+        <p class="text-neutral-600 mb-2"><i class="fa fa-info-circle text-primary mr-2"></i>CSV文件格式要求：</p>
+        <ul class="list-disc pl-5 space-y-1 text-neutral-600">
+          <li>第一列必须为表头</li>
+          <li><span class="text-danger font-medium">分组标识列的表头必须为"分组列"</span></li>
+          <li><span class="text-danger font-medium">时间维度列的表头必须为"时间"</span></li>
+          <li>其他列将作为分析指标</li>
+        </ul>
+      </div>
+      
+      <!-- 上传区域 -->
+      <div id="drop-area" class="border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center transition-smooth hover:border-primary cursor-pointer">
+        <i class="fa fa-cloud-upload text-4xl text-neutral-400 mb-4"></i>
+        <p class="text-neutral-600 mb-2">拖放CSV文件到此处，或</p>
+        <label class="inline-block bg-primary text-white px-6 py-2 rounded-lg font-medium cursor-pointer hover:bg-primary/90 transition-smooth">
+          <i class="fa fa-file-text-o mr-2"></i>选择文件
+          <input type="file" id="file-input" accept=".csv" class="hidden">
+        </label>
+        <p id="file-name" class="mt-4 text-neutral-500 hidden"></p>
+      </div>
+      
+      <!-- 数据预览 -->
+      <div id="data-preview" class="mt-6 hidden">
+        <h3 class="text-lg font-medium mb-3 text-neutral-700">数据预览</h3>
+        <div class="overflow-x-auto max-h-60 border border-neutral-200 rounded-lg">
+          <table class="min-w-full bg-white">
+            <thead>
+              <tr id="preview-header" class="bg-neutral-100 text-neutral-600"></tr>
+            </thead>
+            <tbody id="preview-body"></tbody>
+          </table>
         </div>
+      </div>
+      
+      <!-- 核心指标选择 -->
+      <div id="metrics-selection" class="mt-6 hidden">
+        <h3 class="text-lg font-medium mb-3 text-neutral-700">选择核心指标（可多选）</h3>
+        <div id="metrics-checkboxes" class="flex flex-wrap gap-3 mb-4"></div>
+      </div>
+      
+      <!-- 分析按钮 -->
+      <div class="mt-8 text-center">
+        <button id="analyze-btn" class="bg-primary text-white px-8 py-3 rounded-lg font-medium text-lg shadow-md hover:bg-primary/90 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+          <i class="fa fa-play-circle mr-2"></i>开始AB测试分析
+        </button>
+      </div>
+    </section>
+    
+    <!-- 分析结果区域 -->
+    <section id="results-section" class="hidden mb-10">
+      <!-- 业务建议 -->
+      <div id="business-insights" class="bg-white rounded-xl shadow-card p-6 md:p-8 mb-8 transition-smooth hover:shadow-hover">
+        <h2 class="text-xl md:text-2xl font-semibold mb-6 text-neutral-700">
+          <i class="fa fa-lightbulb-o text-warning mr-2"></i>业务建议
+        </h2>
+        <div id="insights-content" class="prose max-w-none"></div>
+      </div>
+      
+      <!-- 核心指标结果 -->
+      <div id="key-metrics-results" class="mb-8">
+        <h2 class="text-xl md:text-2xl font-semibold mb-6 text-neutral-700">
+          <i class="fa fa-star text-warning mr-2"></i>核心指标置信分析结果
+        </h2>
+        <div id="key-metrics-charts" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+      </div>
+      
+      <!-- 所有指标结果 -->
+      <div id="all-metrics-results">
+        <h2 class="text-xl md:text-2xl font-semibold mb-6 text-neutral-700">
+          <i class="fa fa-bar-chart text-primary mr-2"></i>所有指标置信分析结果
+        </h2>
+        <div id="all-metrics-charts" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+      </div>
+    </section>
+    
+    <!-- 加载状态 -->
+    <div id="loading-indicator" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white p-8 rounded-xl shadow-lg text-center">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+        <p class="text-lg font-medium text-neutral-700">正在进行AB测试分析，请稍候...</p>
+      </div>
+    </div>
+  </main>
 
-        <!-- 右侧：结果展示（包含置信分析结果） -->
-        <div class="lg:col-span-2 space-y-6">
-            <!-- 1. 核心指标置信结果（顶部优先展示） -->
-            <div id="coreConfidenceResult" class="bg-white rounded-lg shadow p-6 hidden">
-                <h2 class="text-lg font-semibold mb-4 flex items-center text-primary">
-                    <i class="fa fa-star mr-2"></i>核心指标置信分析结果
-                </h2>
-                <div id="coreConfidenceContent" class="space-y-6">
-                    <!-- 置信结果将动态生成 -->
-                </div>
-            </div>
+  <footer class="bg-neutral-700 text-white py-6">
+    <div class="container mx-auto px-4 text-center">
+      <p>© 2023 AB测试置信分析工具 | 专业的数据分析解决方案</p>
+      <div class="mt-3 flex justify-center space-x-4">
+        <a href="#" class="hover:text-primary transition-smooth"><i class="fa fa-github text-xl"></i></a>
+        <a href="#" class="hover:text-primary transition-smooth"><i class="fa fa-twitter text-xl"></i></a>
+        <a href="#" class="hover:text-primary transition-smooth"><i class="fa fa-linkedin text-xl"></i></a>
+      </div>
+    </div>
+  </footer>
 
-            <!-- 2. 每日AB测试+置信结果 -->
-            <div id="dailyResult" class="bg-white rounded-lg shadow p-6 hidden">
-                <h2 class="text-lg font-semibold mb-4 flex items-center text-primary">
-                    <i class="fa fa-calendar mr-2"></i>每日AB测试+置信区间分析
-                </h2>
-                <div id="dailyResultContent" class="space-y-8">
-                    <!-- 每日结果将动态生成 -->
-                </div>
-            </div>
-
-            <!-- 3. 业务建议（基于置信结果） -->
-            <div id="businessAdvice" class="bg-white rounded-lg shadow p-6 hidden">
-                <h2 class="text-lg font-semibold mb-4 flex items-center text-primary">
-                    <i class="fa fa-lightbulb-o mr-2"></i>可视化业务建议
-                </h2>
-                <div id="adviceContent" class="p-4 rounded-md bg-blue-50 border border-blue-100">
-                    <!-- 建议将动态生成 -->
-                </div>
-            </div>
-
-            <!-- 4. 数据预览（修复：确保表格渲染完整） -->
-            <div id="dataPreview" class="bg-white rounded-lg shadow p-6 hidden">
-                <h2 class="text-lg font-semibold mb-4 flex items-center">
-                    <i class="fa fa-table text-primary mr-2"></i>数据预览（前5行）
-                </h2>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200 border border-gray-200">
-                        <thead id="previewHeader" class="bg-gray-50"></thead>
-                        <tbody id="previewBody" class="bg-white divide-y divide-gray-200"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- 5. 错误提示（新增：便于排查问题） -->
-            <div id="errorAlert" class="bg-white rounded-lg shadow p-6 hidden">
-                <h2 class="text-lg font-semibold mb-2 flex items-center text-danger">
-                    <i class="fa fa-exclamation-triangle mr-2"></i>操作提示
-                </h2>
-                <p id="errorMsg" class="text-danger text-sm"></p>
-            </div>
-        </div>
-    </main>
-
-    <!-- 脚本（核心修复：确保全流程无断点） -->
-    <script>
-        // 全局变量（初始化所有关键变量，避免undefined）
-        let currentData = null; // 解析后的CSV数据
-        let groupValues = [];   // 分组列唯一值
-        let metricValues = [];  // 数值型指标列
-        let isAnalyzing = false;// 是否正在分析（防止重复点击）
-
-        // DOM元素（提前获取所有元素，避免后续查找失败）
-        const fileInput = document.getElementById('fileInput');
-        const selectFileBtn = document.getElementById('selectFileBtn');
-        const dropZone = document.getElementById('dropZone');
-        const fileStatus = document.getElementById('fileStatus');
-        const configSection = document.getElementById('configSection');
-        const groupSelector = document.getElementById('groupSelector');
-        const groupLoadingTip = document.getElementById('groupLoadingTip');
-        const groupOptions = document.getElementById('groupOptions');
-        const metricSelector = document.getElementById('metricSelector');
-        const metricLoadingTip = document.getElementById('metricLoadingTip');
-        const metricOptions = document.getElementById('metricOptions');
-        const confidenceLevel = document.getElementById('confidenceLevel');
-        const confidenceLevelText = document.getElementById('confidenceLevelText');
-        const excludeOutliers = document.getElementById('excludeOutliers');
-        const startAnalysisBtn = document.getElementById('startAnalysisBtn');
-        const analysisLoadingBtn = document.getElementById('analysisLoadingBtn');
-        const coreConfidenceResult = document.getElementById('coreConfidenceResult');
-        const coreConfidenceContent = document.getElementById('coreConfidenceContent');
-        const dailyResult = document.getElementById('dailyResult');
-        const dailyResultContent = document.getElementById('dailyResultContent');
-        const businessAdvice = document.getElementById('businessAdvice');
-        const adviceContent = document.getElementById('adviceContent');
-        const dataPreview = document.getElementById('dataPreview');
-        const previewHeader = document.getElementById('previewHeader');
-        const previewBody = document.getElementById('previewBody');
-        const errorAlert = document.getElementById('errorAlert');
-        const errorMsg = document.getElementById('errorMsg');
-
-        // 初始化事件监听（修复：确保所有事件绑定完整）
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('工具初始化完成，等待上传数据...'); // 调试用，可删除
-
-            // 1. 文件选择按钮点击（修复：直接触发input）
-            selectFileBtn.addEventListener('click', () => {
-                fileInput.click();
-            });
-
-            // 2. 文件选择变化（修复：确保解析逻辑触发）
-            fileInput.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    handleFileUpload(file);
-                }
-            });
-
-            // 3. 拖放文件（修复：简化逻辑，确保触发）
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                dropZone.addEventListener(eventName, preventDefaults);
-            });
-            dropZone.addEventListener('drop', (e) => {
-                const file = e.dataTransfer.files[0];
-                if (file && file.name.endsWith('.csv')) {
-                    handleFileUpload(file);
-                } else {
-                    showError('请上传CSV格式的文件！');
-                }
-            });
-
-            // 4. 置信水平滑块（修复：实时更新文本）
-            confidenceLevel.addEventListener('input', () => {
-                confidenceLevelText.textContent = `${confidenceLevel.value}%`;
-            });
-
-            // 5. 开始分析按钮（修复：添加加载状态，防止重复点击）
-            startAnalysisBtn.addEventListener('click', startAnalysis);
-        });
-
-        // 阻止默认拖放行为（修复：避免浏览器默认打开文件）
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
+  <script>
+    // 全局变量存储解析后的数据
+    let parsedData = null;
+    let metrics = [];
+    let selectedKeyMetrics = [];
+    
+    // DOM元素
+    const dropArea = document.getElementById('drop-area');
+    const fileInput = document.getElementById('file-input');
+    const fileName = document.getElementById('file-name');
+    const dataPreview = document.getElementById('data-preview');
+    const previewHeader = document.getElementById('preview-header');
+    const previewBody = document.getElementById('preview-body');
+    const metricsSelection = document.getElementById('metrics-selection');
+    const metricsCheckboxes = document.getElementById('metrics-checkboxes');
+    const analyzeBtn = document.getElementById('analyze-btn');
+    const resultsSection = document.getElementById('results-section');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const businessInsights = document.getElementById('business-insights');
+    const insightsContent = document.getElementById('insights-content');
+    const keyMetricsCharts = document.getElementById('key-metrics-charts');
+    const allMetricsCharts = document.getElementById('all-metrics-charts');
+    
+    // 拖放事件处理
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      dropArea.addEventListener(eventName, preventDefaults, false);
+    });
+    
+    function preventDefaults(e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropArea.addEventListener(eventName, highlight, false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropArea.addEventListener(eventName, unhighlight, false);
+    });
+    
+    function highlight() {
+      dropArea.classList.add('border-primary');
+      dropArea.classList.add('bg-primary/5');
+    }
+    
+    function unhighlight() {
+      dropArea.classList.remove('border-primary');
+      dropArea.classList.remove('bg-primary/5');
+    }
+    
+    // 处理文件上传
+    dropArea.addEventListener('drop', handleDrop, false);
+    fileInput.addEventListener('change', handleFiles, false);
+    
+    function handleDrop(e) {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      handleFiles({ target: { files } });
+    }
+    
+    function handleFiles(e) {
+      const file = e.target.files[0];
+      if (file) {
+        if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
+          alert('请上传CSV格式的文件');
+          return;
         }
-
-        // 处理文件上传（核心修复：确保数据解析全流程）
-        function handleFileUpload(file) {
-            // 步骤1：更新文件状态
-            fileStatus.innerHTML = `<i class="fa fa-check-circle mr-1 text-success"></i>已选择：${file.name}（${formatFileSize(file.size)}）`;
-            fileStatus.classList.remove('text-red-500');
-            hideError();
-
-            // 步骤2：读取文件内容（修复：添加错误捕获）
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const csvText = e.target.result;
-                    // 步骤3：解析CSV（修复：确保解析逻辑完整）
-                    const parsedData = parseCSV(csvText);
-                    if (parsedData) {
-                        currentData = parsedData;
-                        // 步骤4：验证数据结构（必须含时间、分组列）
-                        if (validateDataStructure()) {
-                            // 步骤5：渲染配置项和预览
-                            renderConfigOptions();
-                            renderDataPreview();
-                            // 步骤6：显示配置区域
-                            configSection.classList.remove('hidden');
-                            dataPreview.classList.remove('hidden');
-                        }
-                    }
-                } catch (error) {
-                    showError(`文件解析失败：${error.message}`);
-                    fileStatus.innerHTML = `<i class="fa fa-exclamation-circle mr-1 text-danger"></i>选择失败：${file.name}`;
-                    fileStatus.classList.add('text-red-500');
+        
+        fileName.textContent = `已选择: ${file.name}`;
+        fileName.classList.remove('hidden');
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          parseCSV(e.target.result);
+        };
+        reader.readAsText(file);
+      }
+    }
+    
+    // 解析CSV数据
+    function parseCSV(csvText) {
+      // 清除之前的数据
+      previewHeader.innerHTML = '';
+      previewBody.innerHTML = '';
+      metricsCheckboxes.innerHTML = '';
+      selectedKeyMetrics = [];
+      
+      // 分割行
+      const lines = csvText.split('\n').filter(line => line.trim() !== '');
+      if (lines.length < 2) {
+        alert('CSV文件数据不足，请检查文件内容');
+        return;
+      }
+      
+      // 获取表头
+      const headers = lines[0].split(',').map(header => header.trim());
+      
+      // 检查必要的列
+      if (!headers.includes('分组列')) {
+        alert('CSV文件中缺少"分组列"，请检查表头');
+        return;
+      }
+      
+      if (!headers.includes('时间')) {
+        alert('CSV文件中缺少"时间"列，请检查表头');
+        return;
+      }
+      
+      // 提取指标（排除分组列和时间列）
+      metrics = headers.filter(header => header !== '分组列' && header !== '时间');
+      
+      if (metrics.length === 0) {
+        alert('未找到可分析的指标列，请检查CSV文件');
+        return;
+      }
+      
+      // 解析数据行
+      parsedData = [];
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',');
+        const row = {};
+        
+        headers.forEach((header, index) => {
+          let value = values[index] ? values[index].trim() : '';
+          
+          // 处理百分比数据
+          if (value.includes('%')) {
+            value = parseFloat(value.replace('%', '')) / 100;
+          } 
+          // 尝试转换为数字
+          else if (!isNaN(value) && value !== '') {
+            value = parseFloat(value);
+          }
+          
+          row[header] = value;
+        });
+        
+        parsedData.push(row);
+      }
+      
+      // 显示数据预览
+      displayDataPreview(headers, parsedData);
+      
+      // 显示指标选择
+      displayMetricsSelection(metrics);
+      
+      // 启用分析按钮
+      analyzeBtn.disabled = false;
+    }
+    
+    // 显示数据预览
+    function displayDataPreview(headers, data) {
+      // 创建表头
+      headers.forEach(header => {
+        const th = document.createElement('th');
+        th.textContent = header;
+        th.className = 'px-4 py-2 border-b text-left';
+        if (header === '分组列' || header === '时间') {
+          th.className += ' text-danger font-medium';
+        }
+        previewHeader.appendChild(th);
+      });
+      
+      // 创建预览行（最多显示5行）
+      const rowsToShow = Math.min(5, data.length);
+      for (let i = 0; i < rowsToShow; i++) {
+        const tr = document.createElement('tr');
+        tr.className = i % 2 === 0 ? 'bg-white' : 'bg-neutral-50';
+        
+        headers.forEach(header => {
+          const td = document.createElement('td');
+          td.className = 'px-4 py-2 border-b';
+          
+          // 格式化显示
+          let value = data[i][header];
+          if (typeof value === 'number') {
+            // 如果是小数且接近百分比，显示为百分比
+            if (value >= 0 && value <= 1) {
+              td.textContent = (value * 100).toFixed(2) + '%';
+            } else {
+              td.textContent = value.toLocaleString(undefined, {
+                maximumFractionDigits: 2
+              });
+            }
+          } else {
+            td.textContent = value;
+          }
+          
+          tr.appendChild(td);
+        });
+        
+        previewBody.appendChild(tr);
+      }
+      
+      // 如果有更多数据，显示省略行
+      if (data.length > 5) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = headers.length;
+        td.className = 'px-4 py-2 border-b text-center text-neutral-500';
+        td.textContent = `... 还有 ${data.length - 5} 行数据未显示`;
+        tr.appendChild(td);
+        previewBody.appendChild(tr);
+      }
+      
+      dataPreview.classList.remove('hidden');
+    }
+    
+    // 显示指标选择
+    function displayMetricsSelection(metrics) {
+      metrics.forEach(metric => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `metric-${metric}`;
+        checkbox.value = metric;
+        checkbox.className = 'w-4 h-4 text-primary border-neutral-300 rounded focus:ring-primary';
+        
+        const label = document.createElement('label');
+        label.htmlFor = `metric-${metric}`;
+        label.className = 'ml-2 text-neutral-700';
+        label.textContent = metric;
+        
+        div.appendChild(checkbox);
+        div.appendChild(label);
+        metricsCheckboxes.appendChild(div);
+        
+        // 添加事件监听
+        checkbox.addEventListener('change', function() {
+          if (this.checked) {
+            selectedKeyMetrics.push(metric);
+          } else {
+            selectedKeyMetrics = selectedKeyMetrics.filter(m => m !== metric);
+          }
+        });
+      });
+      
+      metricsSelection.classList.remove('hidden');
+    }
+    
+    // 分析按钮点击事件
+    analyzeBtn.addEventListener('click', function() {
+      if (selectedKeyMetrics.length === 0) {
+        alert('请至少选择一个核心指标');
+        return;
+      }
+      
+      // 显示加载状态
+      loadingIndicator.classList.remove('hidden');
+      
+      // 模拟分析过程
+      setTimeout(() => {
+        performAnalysis();
+        loadingIndicator.classList.add('hidden');
+        resultsSection.classList.remove('hidden');
+        // 滚动到结果区域
+        resultsSection.scrollIntoView({ behavior: 'smooth' });
+      }, 1500);
+    });
+    
+    // 执行AB测试分析
+    function performAnalysis() {
+      // 清空之前的结果
+      insightsContent.innerHTML = '';
+      keyMetricsCharts.innerHTML = '';
+      allMetricsCharts.innerHTML = '';
+      
+      // 按分组聚合数据
+      const groups = {};
+      parsedData.forEach(row => {
+        const group = row['分组列'];
+        if (!groups[group]) {
+          groups[group] = {
+            count: 0,
+            metrics: {}
+          };
+          metrics.forEach(metric => {
+            groups[group].metrics[metric] = [];
+          });
+        }
+        
+        groups[group].count++;
+        metrics.forEach(metric => {
+          if (typeof row[metric] === 'number') {
+            groups[group].metrics[metric].push(row[metric]);
+          }
+        });
+      });
+      
+      const groupNames = Object.keys(groups);
+      if (groupNames.length < 2) {
+        insightsContent.innerHTML = '<p class="text-danger">数据中分组不足，至少需要两个分组进行AB测试分析</p>';
+        return;
+      }
+      
+      // 计算每个指标的统计数据
+      const analysisResults = {};
+      metrics.forEach(metric => {
+        analysisResults[metric] = {};
+        
+        groupNames.forEach(group => {
+          const values = groups[group].metrics[metric];
+          const mean = calculateMean(values);
+          const std = calculateStandardDeviation(values);
+          const n = values.length;
+          
+          analysisResults[metric][group] = {
+            mean,
+            std,
+            n,
+            // 计算95%置信区间
+            ciLower: mean - 1.96 * (std / Math.sqrt(n)),
+            ciUpper: mean + 1.96 * (std / Math.sqrt(n))
+          };
+        });
+        
+        // 计算组间差异及显著性
+        const control = groupNames[0];
+        const variant = groupNames[1];
+        const diff = analysisResults[metric][variant].mean - analysisResults[metric][control].mean;
+        const relativeDiff = (diff / analysisResults[metric][control].mean) * 100;
+        
+        // 计算p值（简化模拟）
+        const pValue = simulatePValue(analysisResults[metric][control], analysisResults[metric][variant]);
+        
+        analysisResults[metric].difference = {
+          absolute: diff,
+          relative: relativeDiff,
+          significant: pValue < 0.05,
+          pValue: pValue
+        };
+      });
+      
+      // 生成业务建议
+      generateBusinessInsights(analysisResults, selectedKeyMetrics, groupNames);
+      
+      // 生成核心指标图表
+      selectedKeyMetrics.forEach(metric => {
+        createMetricChart(metric, analysisResults[metric], groupNames, keyMetricsCharts, true);
+      });
+      
+      // 生成所有指标图表
+      metrics.forEach(metric => {
+        if (!selectedKeyMetrics.includes(metric)) {
+          createMetricChart(metric, analysisResults[metric], groupNames, allMetricsCharts, false);
+        }
+      });
+    }
+    
+    // 生成业务建议
+    function generateBusinessInsights(results, keyMetrics, groupNames) {
+      const control = groupNames[0];
+      const variant = groupNames[1];
+      
+      let insights = `<p>根据AB测试分析结果，对比${control}和${variant}两组数据，得出以下业务建议：</p>`;
+      insights += '<ul class="list-disc pl-5 my-4">';
+      
+      // 分析核心指标
+      keyMetrics.forEach(metric => {
+        const result = results[metric];
+        const diff = result.difference;
+        
+        if (diff.significant) {
+          if (diff.relative > 0) {
+            insights += `<li class="mb-2"><span class="font-medium text-success">${metric}</span>在${variant}组表现显著优于${control}组，提升了${Math.abs(diff.relative).toFixed(2)}%，建议推广${variant}方案。</li>`;
+          } else {
+            insights += `<li class="mb-2"><span class="font-medium text-danger">${metric}</span>在${variant}组表现显著劣于${control}组，下降了${Math.abs(diff.relative).toFixed(2)}%，建议保留${control}方案。</li>`;
+          }
+        } else {
+          insights += `<li class="mb-2"><span class="font-medium text-neutral-500">${metric}</span>在两组间差异不显著（p=${diff.pValue.toFixed(3)}），建议延长测试时间或增加样本量以获取更明确结果。</li>`;
+        }
+      });
+      
+      insights += '</ul>';
+      
+      // 整体结论
+      const significantImprovements = keyMetrics.filter(metric => 
+        results[metric].difference.significant && results[metric].difference.relative > 0
+      );
+      
+      const significantDeclines = keyMetrics.filter(metric => 
+        results[metric].difference.significant && results[metric].difference.relative < 0
+      );
+      
+      if (significantImprovements.length > significantDeclines.length) {
+        insights += `<p class="p-3 bg-success/10 border border-success/30 rounded-lg text-success"><i class="fa fa-check-circle mr-2"></i>整体来看，${variant}方案在关键指标上表现更优，建议考虑全面推广。</p>`;
+      } else if (significantDeclines.length > 0) {
+        insights += `<p class="p-3 bg-danger/10 border border-danger/30 rounded-lg text-danger"><i class="fa fa-exclamation-circle mr-2"></i>整体来看，${variant}方案在关键指标上表现较差，不建议推广。</p>`;
+      } else {
+        insights += `<p class="p-3 bg-neutral-100 border border-neutral-300 rounded-lg text-neutral-600"><i class="fa fa-info-circle mr-2"></i>测试结果尚未明确，建议继续观察或调整测试方案后重新测试。</p>`;
+      }
+      
+      insightsContent.innerHTML = insights;
+    }
+    
+    // 创建指标图表
+    function createMetricChart(metric, result, groups, container, isKeyMetric) {
+      const control = groups[0];
+      const variant = groups[1];
+      const diff = result.difference;
+      
+      // 创建卡片容器
+      const card = document.createElement('div');
+      card.className = `bg-white rounded-xl shadow-card p-5 transition-smooth hover:shadow-hover ${isKeyMetric ? 'border-l-4 border-primary' : ''}`;
+      
+      // 标题
+      const title = document.createElement('h3');
+      title.className = `text-lg font-semibold mb-4 ${isKeyMetric ? 'text-primary' : 'text-neutral-700'}`;
+      title.textContent = metric;
+      card.appendChild(title);
+      
+      // 图表容器
+      const chartContainer = document.createElement('div');
+      chartContainer.className = 'h-64 mb-4';
+      const canvas = document.createElement('canvas');
+      chartContainer.appendChild(canvas);
+      card.appendChild(chartContainer);
+      
+      // 统计信息
+      const statsDiv = document.createElement('div');
+      statsDiv.className = 'grid grid-cols-2 gap-2 text-sm';
+      
+      // 控制组信息
+      const controlDiv = document.createElement('div');
+      controlDiv.className = 'bg-neutral-50 p-2 rounded';
+      controlDiv.innerHTML = `
+        <p class="text-neutral-500">${control}均值</p>
+        <p class="font-medium">${formatValue(result[control].mean)}</p>
+      `;
+      
+      // 变体组信息
+      const variantDiv = document.createElement('div');
+      variantDiv.className = 'bg-neutral-50 p-2 rounded';
+      variantDiv.innerHTML = `
+        <p class="text-neutral-500">${variant}均值</p>
+        <p class="font-medium">${formatValue(result[variant].mean)}</p>
+      `;
+      
+      statsDiv.appendChild(controlDiv);
+      statsDiv.appendChild(variantDiv);
+      card.appendChild(statsDiv);
+      
+      // 差异信息
+      const diffDiv = document.createElement('div');
+      diffDiv.className = `mt-3 p-2 rounded text-sm ${
+        diff.significant 
+          ? (diff.relative > 0 ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger') 
+          : 'bg-neutral-100 text-neutral-600'
+      }`;
+      
+      const significanceText = diff.significant ? '显著' : '不显著';
+      diffDiv.innerHTML = `
+        <p>差异: ${diff.relative > 0 ? '+' : ''}${diff.relative.toFixed(2)}% (${significanceText})</p>
+        <p>p值: ${diff.pValue.toFixed(3)}</p>
+      `;
+      card.appendChild(diffDiv);
+      
+      container.appendChild(card);
+      
+      // 绘制图表
+      new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: groups,
+          datasets: [{
+            label: '均值',
+            data: [result[control].mean, result[variant].mean],
+            backgroundColor: [
+              'rgba(156, 163, 175, 0.7)',
+              'rgba(22, 93, 255, 0.7)'
+            ],
+            borderColor: [
+              'rgb(156, 163, 175)',
+              'rgb(22, 93, 255)'
+            ],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function(value) {
+                  // 如果是比例数据，显示为百分比
+                  if (this.chart.data.datasets[0].data.some(v => v >= 0 && v <= 1)) {
+                    return (value * 100).toFixed(0) + '%';
+                  }
+                  return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
                 }
-            };
-            // 修复：捕获读取错误
-            reader.onerror = function() {
-                showError('文件读取失败，请检查文件是否损坏或重新上传');
-                fileStatus.innerHTML = `<i class="fa fa-exclamation-circle mr-1 text-danger"></i>读取失败：${file.name}`;
-                fileStatus.classList.add('text-red-500');
-            };
-            reader.readAsText(file);
+              }
+            }
+          },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  let value = context.raw;
+                  if (context.chart.data.datasets[0].data.some(v => v >= 0 && v <= 1)) {
+                    return `均值: ${(value * 100).toFixed(2)}%`;
+                  }
+                  return `均值: ${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+    
+    // 工具函数：计算均值
+    function calculateMean(values) {
+      if (values.length === 0) return 0;
+      const sum = values.reduce((acc, val) => acc + val, 0);
+      return sum / values.length;
+    }
+    
+    // 工具函数：计算标准差
+    function calculateStandardDeviation(values) {
+      if (values.length <= 1) return 0;
+      const mean = calculateMean(values);
+      const squaredDiffs = values.map(val => Math.pow(val - mean, 2));
+      const variance = calculateMean(squaredDiffs);
+      return Math.sqrt(variance);
+    }
+    
+    // 工具函数：模拟p值计算（简化版）
+    function simulatePValue(control, variant) {
+      // 实际应用中应使用适当的统计检验
+      const effectSize = Math.abs(variant.mean - control.mean) / 
+        Math.sqrt((Math.pow(control.std, 2) + Math.pow(variant.std, 2)) / 2);
+      
+      const sampleSize = Math.sqrt((control.n * variant.n) / (control.n + variant.n));
+      const zScore = effectSize * sampleSize;
+      
+      // 从z分数近似p值（双尾检验）
+      return 2 * (1 - normcdf(Math.abs(zScore)));
+    }
+    
+    // 正态分布累积分布函数（近似）
+    function normcdf(x) {
+      const t = 1 / (1 + 0.2316419 * x);
+      const d = 0.3989423 * Math.exp(-x * x / 2);
+      const prob = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+      return x >= 0 ? 1 - prob : prob;
+    }
+    
+    // 格式化数值显示
+    function formatValue(value) {
+      if (value >= 0 && value <= 1) {
+        return (value * 100).toFixed(2) + '%';
+      } else if (Math.abs(value) < 0.001 && value !== 0) {
+        return value.toExponential(3);
+      } else if (Math.abs(value) > 1000) {
+        return value.toLocaleString();
+      } else {
+        return value.toFixed(2);
+      }
+    }
+  </script>
+</body>
+</html>
