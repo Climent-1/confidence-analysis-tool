@@ -59,20 +59,20 @@
                         <span class="text-red-600 font-medium">强制要求：</span>
                     </p>
                     <ul class="text-sm text-amber-800 list-disc list-inside pl-2 space-y-1">
-                        <li>CSV文件必须包含“<span class="text-red-600 font-medium">分组列</span>”表头（区分对照组/测试组）</li>
+                        <li>CSV文件必须包含“<span class="text-red-600 font-medium">分组列</span>”表头（区分不同组，如A组/B组）</li>
                         <li>CSV文件必须包含“<span class="text-red-600 font-medium">时间</span>”表头（格式如2025-11-05）</li>
                         <li>其他列为数值型核心指标（如转化率、营收等）</li>
                     </ul>
                 </div>
-                <!-- 文件上传 -->
+                <!-- 文件上传（修复点击与拖放响应） -->
                 <div id="dropZone" class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-all">
                     <i class="fa fa-file-text-o text-3xl text-gray-400 mb-2"></i>
                     <p class="text-gray-500">拖放CSV文件到此处，或</p>
-                    <label class="mt-2 btn btn-primary inline-block cursor-pointer">
+                    <label class="mt-2 btn btn-primary inline-block cursor-pointer" for="fileInput">
                         <span>选择文件</span>
-                        <input type="file" id="fileInput" accept=".csv" class="hidden">
                     </label>
-                    <p id="fileInfo" class="mt-2 text-sm text-gray-500"></p>
+                    <input type="file" id="fileInput" accept=".csv" class="hidden" />
+                    <p id="fileInfo" class="mt-2 text-sm text-gray-500">未选择文件</p>
                 </div>
             </div>
 
@@ -81,16 +81,29 @@
                 <h2 class="text-lg font-semibold mb-4 flex items-center">
                     <i class="fa fa-cog text-primary mr-2"></i>分析配置
                 </h2>
-                <!-- 核心指标选择 -->
+
+                <!-- 1. 分组列内容选择（新增：手动指定对照组） -->
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-2">
-                        选择核心指标（可多选，将优先展示结果）
+                        选择对照组（可多选，剩余自动设为实验组）
+                    </label>
+                    <div id="groupValuesContainer" class="space-y-2 max-h-32 overflow-y-auto p-1 border border-gray-200 rounded-md">
+                        <!-- 分组列内容选项将动态生成 -->
+                        <p class="text-gray-500 text-sm text-center italic" id="groupEmptyTip">加载中...</p>
+                    </div>
+                </div>
+
+                <!-- 2. 核心指标选择 -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        选择核心指标（可多选，优先展示结果）
                     </label>
                     <div id="metricsContainer" class="space-y-2">
                         <!-- 核心指标选项将动态生成 -->
                     </div>
                 </div>
-                <!-- 置信水平 -->
+
+                <!-- 3. 置信水平 -->
                 <div class="mb-4">
                     <label for="confidenceLevel" class="block text-sm font-medium text-gray-700 mb-2">
                         置信水平（默认95%）
@@ -100,13 +113,15 @@
                         <span id="confidenceLevelValue" class="text-sm font-medium w-10 text-center">95%</span>
                     </div>
                 </div>
-                <!-- 异常值检测 -->
+
+                <!-- 4. 异常值检测 -->
                 <div class="mb-6">
                     <label class="flex items-center space-x-2 cursor-pointer">
                         <input type="checkbox" id="detectOutliers" class="rounded text-primary focus:ring-primary" checked>
                         <span class="text-sm text-gray-700">检测并排除异常值（推荐）</span>
                     </label>
                 </div>
+
                 <!-- 开始分析按钮 -->
                 <button id="startABTestBtn" class="btn btn-primary w-full">
                     <i class="fa fa-play mr-1"></i>开始AB测试分析
@@ -146,7 +161,7 @@
                 </div>
             </div>
 
-            <!-- 数据预览（可选） -->
+            <!-- 数据预览 -->
             <div id="dataPreview" class="bg-white rounded-lg shadow p-6 hidden">
                 <h2 class="text-lg font-semibold mb-4 flex items-center">
                     <i class="fa fa-table text-primary mr-2"></i>数据预览（前5行）
@@ -161,19 +176,22 @@
         </div>
     </main>
 
-    <!-- 脚本 -->
+    <!-- 脚本（修复上传逻辑+新增分组选择） -->
     <script>
         // 全局变量
         let currentData = null; // 解析后的CSV数据
         let coreMetrics = [];   // 选中的核心指标
         let allMetrics = [];    // 所有数值型指标（除时间、分组列）
+        let groupValues = [];   // 分组列的所有唯一值
 
-        // DOM元素
+        // DOM元素（提前获取所有需要操作的元素）
         const fileInput = document.getElementById('fileInput');
         const dropZone = document.getElementById('dropZone');
         const fileInfo = document.getElementById('fileInfo');
         const configSection = document.getElementById('configSection');
         const metricsContainer = document.getElementById('metricsContainer');
+        const groupValuesContainer = document.getElementById('groupValuesContainer');
+        const groupEmptyTip = document.getElementById('groupEmptyTip');
         const confidenceLevel = document.getElementById('confidenceLevel');
         const confidenceLevelValue = document.getElementById('confidenceLevelValue');
         const detectOutliers = document.getElementById('detectOutliers');
@@ -188,194 +206,157 @@
         const tableHeader = document.getElementById('tableHeader');
         const tableBody = document.getElementById('tableBody');
 
-        // 初始化事件监听
+        // 初始化事件监听（修复上传响应）
         document.addEventListener('DOMContentLoaded', () => {
-            // 文件上传监听
+            // 1. 修复文件选择响应
             fileInput.addEventListener('change', handleFileSelect);
-            dropZone.addEventListener('drop', handleDrop);
-            ['dragenter', 'dragover', 'dragleave'].forEach(event => {
-                dropZone.addEventListener(event, preventDefaults);
+
+            // 2. 修复拖放响应
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, preventDefaults);
             });
             ['dragenter', 'dragover'].forEach(event => {
-                dropZone.addEventListener(event, highlight);
+                dropZone.addEventListener(event, highlightDropZone);
             });
             ['dragleave', 'drop'].forEach(event => {
-                dropZone.addEventListener(event, unhighlight);
+                dropZone.addEventListener(event, unhighlightDropZone);
             });
+            dropZone.addEventListener('drop', handleDrop);
 
-            // 置信水平滑块监听
+            // 3. 置信水平滑块
             confidenceLevel.addEventListener('input', () => {
                 confidenceLevelValue.textContent = `${confidenceLevel.value}%`;
             });
 
-            // 开始分析按钮监听
+            // 4. 开始分析按钮
             startABTestBtn.addEventListener('click', startABTestAnalysis);
         });
 
-        // 阻止默认拖放行为
+        // 阻止默认拖放行为（修复拖放不响应）
         function preventDefaults(e) {
             e.preventDefault();
             e.stopPropagation();
         }
 
-        // 拖放高亮
-        function highlight() {
+        // 拖放区域高亮
+        function highlightDropZone() {
             dropZone.classList.add('border-primary', 'bg-blue-50');
         }
 
-        // 拖放取消高亮
-        function unhighlight() {
+        // 拖放区域取消高亮
+        function unhighlightDropZone() {
             dropZone.classList.remove('border-primary', 'bg-blue-50');
         }
 
-        // 处理文件拖放
+        // 处理拖放文件（修复逻辑）
         function handleDrop(e) {
             const files = e.dataTransfer.files;
-            if (files.length > 0) handleFiles(files);
-        }
-
-        // 处理文件选择
-        function handleFileSelect(e) {
-            const files = e.target.files;
-            if (files.length > 0) handleFiles(files);
-        }
-
-        // 处理CSV文件
-        function handleFiles(files) {
-            const file = files[0];
-            if (!file.name.endsWith('.csv')) {
-                alert('请上传CSV格式文件！');
-                return;
+            if (files.length > 0 && files[0].name.endsWith('.csv')) {
+                handleFiles(files[0]);
+            } else {
+                fileInfo.textContent = '请上传CSV格式文件！';
+                fileInfo.classList.add('text-red-500');
             }
+        }
+
+        // 处理文件选择（修复逻辑）
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleFiles(file);
+            }
+        }
+
+        // 核心：处理CSV文件（修复解析逻辑，确保数据正确读取）
+        function handleFiles(file) {
+            // 显示文件名
             fileInfo.textContent = `已选择：${file.name}`;
+            fileInfo.classList.remove('text-red-500');
 
             const reader = new FileReader();
+            // 修复：确保读取完成后再解析
             reader.onload = function(e) {
-                const csvData = parseCSV(e.target.result);
-                if (csvData) {
-                    currentData = csvData;
-                    validateDataStructure(); // 验证数据结构（必须含时间、分组列）
+                try {
+                    const csvText = e.target.result;
+                    const csvData = parseCSV(csvText);
+                    if (csvData) {
+                        currentData = csvData;
+                        // 验证数据结构并加载配置项
+                        validateDataStructure();
+                    }
+                } catch (error) {
+                    fileInfo.textContent = `解析失败：${error.message}`;
+                    fileInfo.classList.add('text-red-500');
                 }
+            };
+            // 捕获读取错误
+            reader.onerror = function() {
+                fileInfo.textContent = '文件读取失败，请重试！';
+                fileInfo.classList.add('text-red-500');
             };
             reader.readAsText(file);
         }
 
-        // 解析CSV数据
+        // 解析CSV（修复格式处理，支持逗号分隔和引号包裹）
         function parseCSV(csvText) {
-            try {
-                const lines = csvText.split('\n').filter(line => line.trim() !== '');
-                const headers = lines[0].split(',').map(header => header.trim());
-                const data = [];
+            const lines = csvText.split('\n').filter(line => line.trim() !== '');
+            if (lines.length < 2) throw new Error('CSV文件至少包含表头和1行数据');
 
-                lines.slice(1).forEach(line => {
-                    const values = line.split(',').map(value => {
-                        const trimmed = value.trim();
-                        return isNaN(parseFloat(trimmed)) ? trimmed : parseFloat(trimmed);
-                    });
-                    const row = {};
-                    headers.forEach((header, idx) => {
-                        row[header] = values[idx] || '';
-                    });
-                    data.push(row);
+            // 解析表头
+            const headers = lines[0].split(',').map(header => header.trim().replace(/^["']|["']$/g, ''));
+            const data = [];
+
+            // 解析数据行（支持引号包裹的字段）
+            lines.slice(1).forEach((line, lineIdx) => {
+                const values = [];
+                let inQuotes = false;
+                let currentValue = '';
+
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        values.push(currentValue.trim().replace(/^["']|["']$/g, ''));
+                        currentValue = '';
+                    } else {
+                        currentValue += char;
+                    }
+                }
+                // 添加最后一个字段
+                values.push(currentValue.trim().replace(/^["']|["']$/g, ''));
+
+                // 匹配表头数量
+                if (values.length !== headers.length) {
+                    throw new Error(`第${lineIdx+2}行数据列数与表头不匹配`);
+                }
+
+                // 转换数值类型并构建行对象
+                const row = {};
+                headers.forEach((header, idx) => {
+                    const value = values[idx];
+                    // 尝试转换为数字（保留字符串格式的日期）
+                    row[header] = header === '时间' ? value : (isNaN(parseFloat(value)) ? value : parseFloat(value));
                 });
-                return { headers, data };
-            } catch (error) {
-                alert('CSV文件解析失败，请检查格式！');
-                return null;
-            }
+                data.push(row);
+            });
+
+            return { headers, data };
         }
 
         // 验证数据结构（强制含时间、分组列）
         function validateDataStructure() {
-            const headers = currentData.headers.map(h => h.trim());
+            const headers = currentData.headers;
             const hasTimeColumn = headers.includes('时间');
             const hasGroupColumn = headers.includes('分组列');
 
+            // 1. 检查必填列
             if (!hasTimeColumn || !hasGroupColumn) {
-                alert(
-                    `数据格式错误！\n` +
-                    `必须包含以下表头：\n` +
-                    `1. "时间"（时间维度，如2025-11-05）\n` +
-                    `2. "分组列"（分组标识，如Control/Test）`
+                throw new Error(
+                    `缺少必填列！\n` +
+                    `需包含"时间"（如2025-11-05）和"分组列"（如A组/B组）表头`
                 );
-                return;
             }
 
-            // 提取所有数值型指标（除时间、分组列）
-            allMetrics = headers.filter(header => {
-                if (header === '时间' || header === '分组列') return false;
-                // 验证列是否为数值型（检查前10行数据）
-                const sampleValues = currentData.data.slice(0, 10).map(row => row[header]);
-                return sampleValues.every(v => typeof v === 'number' && !isNaN(v));
-            });
-
-            if (allMetrics.length === 0) {
-                alert('未找到数值型指标列！除"时间"和"分组列"外，需至少1列数值数据（如转化率、营收）');
-                return;
-            }
-
-            // 生成核心指标选择框
-            renderMetricsSelector();
-            // 显示配置区域和数据预览
-            configSection.classList.remove('hidden');
-            renderDataPreview();
-            dataPreview.classList.remove('hidden');
-        }
-
-        // 生成核心指标选择框
-        function renderMetricsSelector() {
-            metricsContainer.innerHTML = '';
-            allMetrics.forEach(metric => {
-                const div = document.createElement('div');
-                div.className = 'flex items-center space-x-2';
-                div.innerHTML = `
-                    <input type="checkbox" id="metric_${metric}" value="${metric}" class="rounded text-primary focus:ring-primary" checked>
-                    <label for="metric_${metric}" class="text-sm text-gray-700 cursor-pointer">${metric}</label>
-                `;
-                metricsContainer.appendChild(div);
-            });
-        }
-
-        // 渲染数据预览
-        function renderDataPreview() {
-            // 生成表头
-            tableHeader.innerHTML = '';
-            const headerRow = document.createElement('tr');
-            currentData.headers.forEach(header => {
-                const th = document.createElement('th');
-                th.className = 'px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase';
-                th.textContent = header;
-                headerRow.appendChild(th);
-            });
-            tableHeader.appendChild(headerRow);
-
-            // 生成表体（前5行）
-            tableBody.innerHTML = '';
-            currentData.data.slice(0, 5).forEach(row => {
-                const tr = document.createElement('tr');
-                currentData.headers.forEach(header => {
-                    const td = document.createElement('td');
-                    td.className = 'px-4 py-2 whitespace-nowrap text-sm text-gray-700';
-                    td.textContent = row[header];
-                    tr.appendChild(td);
-                });
-                tableBody.appendChild(tr);
-            });
-        }
-
-        // 开始AB测试分析
-        function startABTestAnalysis() {
-            // 获取选中的核心指标
-            coreMetrics = Array.from(document.querySelectorAll('#metricsContainer input:checked'))
-                .map(cb => cb.value);
-            if (coreMetrics.length === 0) {
-                alert('请至少选择1个核心指标！');
-                return;
-            }
-
-            // 获取分析参数
-            const confidenceLevelVal = parseInt(confidenceLevel.value);
-            const excludeOutliers = detectOutliers.checked;
-
-            // 按时间+分组分组数据
-            const groupedData
+            // 2. 提取分组列的所有唯一值（用于对照组选择）
+            groupValues = [...new Set(currentData.data.map(row => row['分组列'].toString().trim()))];
