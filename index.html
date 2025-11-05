@@ -7,7 +7,6 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <style>
         :root {
             --primary-color: #4361ee;
@@ -257,12 +256,18 @@
             font-weight: 600;
             margin-bottom: 8px;
         }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header text-center">
-            <h1>AB测试置信分析工具v1.2</h1>
+            <h1>AB测试置信分析工具</h1>
             <p class="lead">上传您的AB测试数据，获取详细的置信分析和业务建议</p>
         </div>
         
@@ -282,6 +287,13 @@
                             <p class="text-muted">支持.csv格式文件，文件大小不超过5MB</p>
                             <button class="btn btn-primary mt-2" id="uploadBtn">选择文件</button>
                             <input type="file" id="fileInput" accept=".csv" hidden>
+                        </div>
+                        
+                        <div class="loading" id="loadingIndicator">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <p class="mt-2">正在解析数据，请稍候...</p>
                         </div>
                         
                         <div class="mt-4" id="fileInfo" style="display: none;">
@@ -400,6 +412,7 @@
         const allMetricsTable = document.getElementById('allMetricsTable');
         const businessRecommendation = document.getElementById('businessRecommendation');
         const trendChart = document.getElementById('trendChart');
+        const loadingIndicator = document.getElementById('loadingIndicator');
         
         // 事件监听器
         uploadBtn.addEventListener('click', () => fileInput.click());
@@ -427,40 +440,65 @@
             if (!file) return;
             
             fileName.textContent = file.name;
-            fileInfo.style.display = 'block';
+            fileInfo.style.display = 'none';
+            loadingIndicator.style.display = 'block';
             
-            Papa.parse(file, {
-                header: true,
-                dynamicTyping: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    try {
-                        parseCSVData(results.data, results.meta.fields);
-                    } catch (error) {
-                        alert('解析CSV文件时出错: ' + error.message);
-                    }
-                },
-                error: function(error) {
-                    alert('读取文件时出错: ' + error.message);
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    parseCSVData(e.target.result);
+                } catch (error) {
+                    alert('解析CSV文件时出错: ' + error.message);
+                    loadingIndicator.style.display = 'none';
                 }
-            });
+            };
+            reader.onerror = function() {
+                alert('读取文件时出错');
+                loadingIndicator.style.display = 'none';
+            };
+            reader.readAsText(file);
         }
         
         // 解析CSV数据
-        function parseCSVData(data, headers) {
-            if (data.length < 1) {
-                throw new Error('CSV文件至少需要包含数据行');
+        function parseCSVData(csvText) {
+            const lines = csvText.split('\n').filter(line => line.trim() !== '');
+            if (lines.length < 2) {
+                throw new Error('CSV文件至少需要包含表头和数据行');
             }
+            
+            const headers = lines[0].split(',').map(header => header.trim());
             
             // 检查必要的表头
             if (!headers.includes('分组列')) {
                 alert('错误: CSV文件必须包含"分组列"表头');
+                loadingIndicator.style.display = 'none';
                 return;
             }
             
             if (!headers.includes('时间')) {
                 alert('错误: CSV文件必须包含"时间"表头');
+                loadingIndicator.style.display = 'none';
                 return;
+            }
+            
+            // 解析数据行
+            const data = [];
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',').map(value => value.trim());
+                if (values.length !== headers.length) continue;
+                
+                const row = {};
+                headers.forEach((header, index) => {
+                    // 尝试将数值转换为数字
+                    let value = values[index];
+                    // 处理百分比值
+                    if (typeof value === 'string' && value.includes('%')) {
+                        value = value.replace('%', '');
+                    }
+                    const numValue = parseFloat(value);
+                    row[header] = isNaN(numValue) ? values[index] : numValue;
+                });
+                data.push(row);
             }
             
             parsedData = data;
@@ -474,6 +512,8 @@
             // 显示分析控件
             analysisControls.classList.remove('result-section');
             resultsSection.classList.add('result-section');
+            loadingIndicator.style.display = 'none';
+            fileInfo.style.display = 'block';
         }
         
         // 显示数据预览
@@ -942,7 +982,7 @@
                     return row ? row[metric] : null;
                 });
                 
-                datasets.push({
+                                datasets.push({
                     label: `${group} ${isControl ? '(对照组)' : '(实验组)'}`,
                     data: groupData,
                     borderColor: isControl ? '#3a86ff' : '#ff006e',
@@ -996,4 +1036,201 @@
         }
         
         // 显示业务建议
-        function displayBusinessRecommendation(results
+        function displayBusinessRecommendation(results, keyMetrics) {
+            // 计算总体推荐等级
+            let totalScore = 0;
+            let count = 0;
+            let significantCount = 0;
+            let totalImprovement = 0;
+            
+            keyMetrics.forEach(metric => {
+                Object.keys(results[metric]).forEach(expGroup => {
+                    const result = results[metric][expGroup];
+                    totalScore += result.score;
+                    totalImprovement += parseFloat(result.relativeImprovement);
+                    if (result.isSignificant) significantCount++;
+                    count++;
+                });
+            });
+            
+            const avgScore = count > 0 ? totalScore / count : 0;
+            const avgImprovement = count > 0 ? totalImprovement / count : 0;
+            const significanceRate = count > 0 ? (significantCount / count) * 100 : 0;
+            
+            let overallRecommendation = '低';
+            let recommendationClass = 'recommendation-low';
+            
+            if (avgScore >= 80 && significanceRate >= 70) {
+                overallRecommendation = '高';
+                recommendationClass = 'recommendation-high';
+            } else if (avgScore >= 60 && significanceRate >= 50) {
+                overallRecommendation = '中';
+                recommendationClass = 'recommendation-medium';
+            }
+            
+            // 生成业务建议
+            let recommendationHTML = `
+                <div class="recommendation-box ${recommendationClass}">
+                    <h5>总体推荐等级: <span class="badge ${overallRecommendation === '高' ? 'bg-success' : overallRecommendation === '中' ? 'bg-warning' : 'bg-secondary'}">${overallRecommendation}</span></h5>
+                    <p>基于对 ${keyMetrics.length} 个核心指标的分析，AB测试结果综合评分为 <strong>${avgScore.toFixed(1)}/100</strong>。</p>
+                    <div class="row mt-3">
+                        <div class="col-md-4">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h3 class="${avgImprovement > 0 ? 'positive' : 'negative'}">${avgImprovement.toFixed(2)}%</h3>
+                                    <p class="text-muted">平均提升</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h3 class="${significanceRate >= 50 ? 'positive' : 'neutral'}">${significanceRate.toFixed(1)}%</h3>
+                                    <p class="text-muted">显著指标比例</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h3>${count}</h3>
+                                    <p class="text-muted">测试组合数</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+            `;
+            
+            if (overallRecommendation === '高') {
+                recommendationHTML += `
+                    <div class="mt-4">
+                        <h6><i class="fas fa-check-circle text-success"></i> 强烈推荐推广</h6>
+                        <p><strong>建议:</strong> 实验组表现显著优于对照组，建议全面推广实验组方案。实验组在多个关键指标上表现出稳定的正向提升，具有较高的统计显著性。</p>
+                        <ul>
+                            <li>立即实施表现最佳实验组方案到所有用户</li>
+                            <li>监控实施后的关键指标变化</li>
+                            <li>考虑进一步优化以获取更大收益</li>
+                            <li>建立长期监控机制</li>
+                        </ul>
+                    </div>
+                `;
+            } else if (overallRecommendation === '中') {
+                recommendationHTML += `
+                    <div class="mt-4">
+                        <h6><i class="fas fa-exclamation-triangle text-warning"></i> 谨慎推荐</h6>
+                        <p><strong>建议:</strong> 实验组在某些指标上表现良好，但结果不够显著或一致。建议进行进一步测试或在小范围推广。</p>
+                        <ul>
+                            <li>考虑延长测试时间以收集更多数据</li>
+                            <li>在小范围用户中推广表现最佳方案</li>
+                            <li>分析不同用户群体的响应差异</li>
+                            <li>优化测试方案后重新测试</li>
+                        </ul>
+                    </div>
+                `;
+            } else {
+                recommendationHTML += `
+                    <div class="mt-4">
+                        <h6><i class="fas fa-times-circle text-danger"></i> 不推荐推广</h6>
+                        <p><strong>建议:</strong> 实验组未表现出明显优势，或结果不具统计显著性。不建议推广实验组方案。</p>
+                        <ul>
+                            <li>停止当前测试方案</li>
+                            <li>分析测试失败的原因</li>
+                            <li>重新设计实验方案</li>
+                            <li>考虑测试其他变量或假设</li>
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            // 添加具体指标建议
+            recommendationHTML += `
+                <div class="mt-4">
+                    <h6>关键指标表现:</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>指标</th>
+                                    <th>最佳实验组</th>
+                                    <th>提升幅度</th>
+                                    <th>显著性</th>
+                                    <th>建议</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+            
+            keyMetrics.forEach(metric => {
+                const experimentalGroups = Object.keys(results[metric]);
+                if (experimentalGroups.length === 0) return;
+                
+                // 找出最佳实验组
+                let bestGroup = null;
+                let bestImprovement = -Infinity;
+                
+                experimentalGroups.forEach(expGroup => {
+                    const result = results[metric][expGroup];
+                    const improvement = parseFloat(result.relativeImprovement);
+                    if (improvement > bestImprovement) {
+                        bestImprovement = improvement;
+                        bestGroup = expGroup;
+                    }
+                });
+                
+                if (bestGroup) {
+                    const bestResult = results[metric][bestGroup];
+                    const significance = bestResult.isSignificant ? 
+                        '<span class="badge bg-success">显著</span>' : 
+                        '<span class="badge bg-secondary">不显著</span>';
+                    
+                    let action = '';
+                    if (bestResult.isSignificant && bestImprovement > 0) {
+                        action = '<span class="badge bg-success">推荐</span>';
+                    } else if (bestResult.isSignificant && bestImprovement < 0) {
+                        action = '<span class="badge bg-danger">避免</span>';
+                    } else {
+                        action = '<span class="badge bg-warning">观察</span>';
+                    }
+                    
+                    recommendationHTML += `
+                        <tr>
+                            <td>${metric}</td>
+                            <td>${bestGroup}</td>
+                            <td class="${bestImprovement > 0 ? 'positive' : 'negative'}">${bestImprovement.toFixed(2)}%</td>
+                            <td>${significance}</td>
+                            <td>${action}</td>
+                        </tr>
+                    `;
+                }
+            });
+            
+            recommendationHTML += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            `;
+            
+            businessRecommendation.innerHTML = recommendationHTML;
+        }
+        
+        // 初始化页面
+        function initializePage() {
+            // 重置所有状态
+            parsedData = null;
+            availableMetrics = [];
+            groupOptions = [];
+            
+            // 隐藏结果区域
+            analysisControls.classList.add('result-section');
+            resultsSection.classList.add('result-section');
+            fileInfo.style.display = 'none';
+            loadingIndicator.style.display = 'none';
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', initializePage);
+    </script>
+</body>
+</html>
